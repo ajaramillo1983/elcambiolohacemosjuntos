@@ -1,353 +1,82 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>¡El cambio lo hacemos juntos! - Unidad Popular</title>
-    <!-- Tailwind CSS para el diseño -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Configuración de colores de la Unidad Popular -->
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        upRed: '#E30613',   /* Rojo fuerte Unidad Popular */
-                        upDark: '#1a1a1a',  /* Toques oscuros */
-                        upGray: '#f4f4f5'
-                    }
-                }
-            }
-        }
-    </script>
-    <!-- Fabric.js para la manipulación interactiva de imágenes -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f4f5;
-        }
-        
-        .canvas-container {
-            margin: 0 auto;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            border-radius: 0.75rem;
-            overflow: hidden;
-            background-color: #ffffff;
-            border: 4px solid #E30613;
-            max-width: 100% !important;
-            height: auto !important;
-        }
-        
-        .canvas-container canvas {
-            max-width: 100% !important;
-            height: auto !important;
-        }
-
-        /* Estilo para los botones de selección de estilo activos */
-        .style-btn.active {
-            background-color: #E30613;
-            color: white;
-            border-color: #E30613;
-        }
-    </style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>El cambio lo hacemos juntos · Crea tu foto</title>
+<script type="importmap">{"imports":{"onnxruntime-web":"https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.wasm.min.mjs","onnxruntime-web/webgpu":"https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.webgpu.min.mjs"}}</script>
+<style>
+:root{font-family:Arial,sans-serif;color:#20232a;background:#f5f5f7;--red:#d80820}*{box-sizing:border-box}body{margin:0}header{max-width:1200px;margin:auto;padding:32px 24px 20px}h1{font-size:clamp(26px,4vw,42px);margin:8px 0;color:var(--red)}h2{font-size:19px;margin:0 0 14px}p{line-height:1.55}header p{max-width:720px;color:#565b66;margin-bottom:0}.layout{max-width:1200px;margin:auto;display:grid;grid-template-columns:360px 1fr;gap:24px;padding:16px 24px 40px}.card{background:#fff;border:1px solid #e5e5ea;border-radius:20px;padding:22px;box-shadow:0 8px 28px #00000005}.controls{align-self:start;display:grid;gap:22px}.styles{display:flex;gap:8px;flex-wrap:wrap}button,.upload{font:inherit;border:1px solid #d6d7dd;border-radius:12px;padding:11px 14px;cursor:pointer;background:#fff;color:inherit;text-align:center}.styles button[aria-pressed="true"]{background:var(--red);border-color:var(--red);color:white}.primary,.upload{display:block;width:100%;background:var(--red);color:#fff;border-color:var(--red);font-weight:bold}.secondary{width:100%;margin-top:10px}button:disabled{opacity:.45;cursor:not-allowed}.upload input{position:absolute;width:1px;height:1px;opacity:0}.upload:focus-within{outline:3px solid #3979d2;outline-offset:3px}.small{font-size:13px;color:#656b75;margin:10px 0}.preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.badge{background:#edf6f0;color:#23643a;font-size:12px;padding:6px 10px;border-radius:20px}canvas{display:block;width:100%;height:auto;border-radius:12px;background:#eee}.preview{align-self:start;position:sticky;top:20px}.status{font-size:14px;line-height:1.5;margin:12px 0;min-height:24px}.status.error{color:#a21123}.status.busy{color:#6c4e00}progress{width:100%;height:8px;accent-color:var(--red)}label.range{display:block;margin:15px 0 4px;font-size:14px}input[type=range]{width:100%;accent-color:var(--red)}select{width:100%;padding:10px;border:1px solid #d6d7dd;border-radius:10px;background:white;font:inherit}.compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.compare figure{margin:0}.compare img{width:100%;height:130px;object-fit:contain;background:repeating-conic-gradient(#eee 0% 25%,#fff 0% 50%) 50%/16px 16px;border-radius:10px}.compare figcaption{font-size:12px;margin:6px 0;color:#656b75}[hidden]{display:none!important}.note{padding:12px;border-radius:10px;background:#fff5e6;font-size:13px;line-height:1.5}a{color:#9f1020}footer{font-size:12px;color:#777;padding:0 24px 24px;text-align:center}@media(max-width:760px){.layout{grid-template-columns:1fr;padding:8px 14px 24px;gap:16px}header{padding:22px 16px 12px}.preview{position:static;grid-row:2}.card{padding:17px}.controls{gap:18px}canvas{max-height:78vh;object-fit:contain}.adjust{margin-top:10px}}
+</style>
 </head>
-<body class="min-h-screen flex flex-col items-center py-8 px-4 text-upDark">
-
-    <!-- Encabezado Destacado -->
-    <header class="text-center max-w-3xl mb-8 w-full">
-        <div class="bg-white p-6 rounded-2xl shadow-md border-t-8 border-upRed mb-6">
-            <h1 class="text-4xl md:text-5xl font-black text-upRed tracking-tight uppercase mb-3 drop-shadow-sm">
-                ¡El cambio lo hacemos juntos!
-            </h1>
-            <p class="text-gray-600 text-lg md:text-xl font-medium">
-                Elige una plantilla y sube tu foto. Arrástrala y ajusta su tamaño antes de descargar. Para una composición sin bordes, utiliza una foto PNG con fondo transparente.
-            </p>
-        </div>
-    </header>
-
-    <!-- Controles Principales -->
-    <div class="w-full max-w-3xl mb-8 flex flex-col gap-6 justify-center items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-        
-        <!-- 1. Elegir Estilo -->
-        <div class="w-full text-center">
-            <h2 class="text-xl font-bold text-upDark mb-3">1. Elige tu estilo ideal</h2>
-            <div class="flex flex-wrap justify-center gap-2">
-                <button onclick="changeStyle('Empresarias')" class="style-btn active px-4 py-2 rounded-full border-2 border-gray-300 font-semibold hover:border-upRed transition-colors">Empresarias</button>
-                <button onclick="changeStyle('Deportistas')" class="style-btn px-4 py-2 rounded-full border-2 border-gray-300 font-semibold hover:border-upRed transition-colors text-gray-700">Deportistas</button>
-                <button onclick="changeStyle('Graduadas')" class="style-btn px-4 py-2 rounded-full border-2 border-gray-300 font-semibold hover:border-upRed transition-colors text-gray-700">Graduadas</button>
-                <button onclick="changeStyle('De_gala')" class="style-btn px-4 py-2 rounded-full border-2 border-gray-300 font-semibold hover:border-upRed transition-colors text-gray-700">De Gala</button>
-                <button onclick="changeStyle('Viajeras')" class="style-btn px-4 py-2 rounded-full border-2 border-gray-300 font-semibold hover:border-upRed transition-colors text-gray-700">Viajeras</button>
-            </div>
-        </div>
-
-        <hr class="w-full border-gray-200">
-
-        <!-- 2 y 3. Subir y Descargar -->
-        <div class="flex flex-col sm:flex-row gap-4 justify-center items-center w-full">
-            <!-- Botón Subir Foto -->
-            <label class="cursor-pointer bg-upRed hover:bg-red-700 text-white font-bold py-4 px-8 rounded-full shadow-lg transition-transform transform hover:scale-105 w-full sm:w-auto text-center flex items-center justify-center text-lg">
-                <input type="file" id="userImageUpload" accept="image/*" class="hidden" />
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                2. Subir tu foto
-            </label>
-
-            <!-- Botón Descargar -->
-            <button id="downloadBtn" class="bg-upDark hover:bg-black text-white font-bold py-4 px-8 rounded-full shadow-lg transition-transform transform hover:scale-105 w-full sm:w-auto text-center flex items-center justify-center text-lg opacity-50 cursor-not-allowed" disabled>
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                3. Descargar mi foto
-            </button>
-        </div>
-    </div>
-    
-    <!-- Aviso de carga local -->
-    <div id="missingBgAlert" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-6 max-w-2xl w-full rounded shadow" role="alert">
-        <p class="font-bold">No se pudo cargar la imagen</p>
-        <p>No se pudo cargar la plantilla. Comprueba tu conexión y vuelve a elegir el estilo.</p>
-    </div>
-
-    <!-- Contenedor del Lienzo (Canvas) -->
-    <div class="relative w-full max-w-xl">
-        <canvas id="photoCanvas"></canvas>
-    </div>
-
-    <!-- Redes Sociales -->
-    <div class="mt-8 bg-white p-6 rounded-xl shadow-sm max-w-xl w-full border border-gray-200 text-center">
-        <h3 class="font-bold text-xl text-upDark mb-4">
-            ¡Comparte tu foto en redes sociales!
-        </h3>
-        <p class="text-sm text-gray-500 mb-5">Publica directamente en:</p>
-        <div class="flex flex-col sm:flex-row flex-wrap justify-center gap-3">
-            <!-- WhatsApp -->
-            <button onclick="shareWhatsApp()" class="flex flex-1 items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1EBE5D] text-white font-bold py-3 px-4 rounded-full transition-transform hover:scale-105 shadow-md">
-                <svg class="w-5 h-5 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157.1zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg>
-                WhatsApp
-            </button>
-            <!-- X (Twitter) -->
-            <button onclick="shareX()" class="flex flex-1 items-center justify-center gap-2 bg-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded-full transition-transform hover:scale-105 shadow-md">
-                <svg class="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M389.2 48h70.6L305.6 224.2 487 464H345L233.6 318.1 106.5 464H35.8L200.7 275.5 26.8 48H172.4L272.9 180.9 389.2 48zM364.4 421.8h39.1L151.1 88h-42L364.4 421.8z"/></svg>
-                X / Twitter
-            </button>
-            <!-- Facebook -->
-            <button onclick="shareFacebook()" class="flex flex-1 items-center justify-center gap-2 bg-[#1877F2] hover:bg-[#166FE5] text-white font-bold py-3 px-4 rounded-full transition-transform hover:scale-105 shadow-md">
-                <svg class="w-5 h-5 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><path d="M279.14 288l14.22-92.66h-88.91v-60.13c0-25.35 12.42-50.06 52.24-50.06h40.42V6.26S260.43 0 225.36 0c-73.22 0-121.08 44.38-121.08 124.72v70.62H22.89V288h81.39v224h100.17V288z"/></svg>
-                Facebook
-            </button>
-            <!-- Instagram -->
-            <button onclick="shareInstagram()" class="flex flex-1 items-center justify-center gap-2 bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500 hover:opacity-90 text-white font-bold py-3 px-4 rounded-full transition-transform hover:scale-105 shadow-md">
-                <svg class="w-5 h-5 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M224.1 141c-63.6 0-114.9 51.3-114.9 114.9s51.3 114.9 114.9 114.9S339 319.5 339 255.9 287.7 141 224.1 141zm0 189.6c-41.1 0-74.7-33.5-74.7-74.7s33.5-74.7 74.7-74.7 74.7 33.5 74.7 74.7-33.6 74.7-74.7 74.7zm146.4-194.3c0 14.9-12 26.8-26.8 26.8-14.9 0-26.8-12-26.8-26.8s12-26.8 26.8-26.8 26.8 12 26.8 26.8zm76.1 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM398.8 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z"/></svg>
-                Instagram
-            </button>
-            <!-- TikTok -->
-            <button onclick="shareTikTok()" class="flex flex-1 items-center justify-center gap-2 bg-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded-full transition-transform hover:scale-105 shadow-md">
-                <svg class="w-5 h-5 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M448 209.9a210.1 210.1 0 0 1 -122.8-39.3V349.4A162.6 162.6 0 1 1 185 188.3V278.2a74.6 74.6 0 1 0 52.2 71.2V0l88 0a121.2 121.2 0 0 0 1.9 22.2h0A122.2 122.2 0 0 0 381 102.4a121.4 121.4 0 0 0 67 20.1z"/></svg>
-                TikTok
-            </button>
-        </div>
-    </div>
-
-    <!-- Modal de Alerta Personalizada (Para copiar texto) -->
-    <div id="copyAlertModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden transition-opacity">
-        <div class="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl text-center border-t-8 border-upRed">
-            <div class="text-5xl mb-4">📋</div>
-            <h3 class="font-black text-2xl text-upDark mb-2">¡Texto copiado!</h3>
-            <p class="text-gray-600 mb-6 font-medium">Abre la app, sube tu foto y simplemente pega el texto.</p>
-            <button onclick="closeCopyAlert()" class="bg-upRed hover:bg-red-700 text-white font-bold py-3 px-8 rounded-full w-full transition-transform hover:scale-105 shadow-md text-lg">
-                ¡Entendido!
-            </button>
-        </div>
-    </div>
-
-    <script>
-        // Proporción estándar para afiche (ajustable)
-        const canvasWidth = 900;
-        const canvasHeight = 1600; 
-        
-        const canvas = new fabric.Canvas('photoCanvas', {
-            width: canvasWidth,
-            height: canvasHeight,
-            backgroundColor: '#ffffff',
-            preserveObjectStacking: true
-        });
-
-        // Los JPG se usan como fondo para mantener visible la foto añadida.
-        let templateRequest = 0;
-        let templateReady = false;
-        function loadOverlayImage(styleName) {
-            const request = ++templateRequest;
-            templateReady = false;
-            document.getElementById('downloadBtn').disabled = true;
-            const url = `imagenes/${styleName}.jpg`;
-            fabric.Image.fromURL(url, function(img, isError) {
-                if (request !== templateRequest) return;
-                const alert = document.getElementById('missingBgAlert');
-                if (isError || !img || !img.width || !img.height) {
-                    alert.classList.remove('hidden');
-                    return;
-                }
-                const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height);
-                canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas), {
-                    originX: 'center', originY: 'center',
-                    left: canvasWidth / 2, top: canvasHeight / 2,
-                    scaleX: scale, scaleY: scale
-                });
-                templateReady = true;
-                const download = document.getElementById('downloadBtn');
-                download.disabled = canvas.getObjects().length === 0;
-                download.classList.toggle('opacity-50', download.disabled);
-                download.classList.toggle('cursor-not-allowed', download.disabled);
-                alert.classList.add('hidden');
-            }, { crossOrigin: 'anonymous' });
-        }
-
-        // Lógica de cambio de estilos
-        function changeStyle(styleName) {
-            // Actualizar interfaz de botones
-            const buttons = document.querySelectorAll('.style-btn');
-            buttons.forEach(btn => {
-                btn.classList.remove('active', 'text-white', 'bg-upRed', 'border-upRed');
-                btn.classList.add('text-gray-700', 'border-gray-300');
-                if(btn.textContent.trim().replace(' ', '_').toLowerCase() === styleName.toLowerCase() || 
-                   btn.textContent.trim() === styleName) {
-                    btn.classList.add('active', 'text-white', 'bg-upRed', 'border-upRed');
-                    btn.classList.remove('text-gray-700', 'border-gray-300');
-                }
-            });
-
-            // Cargar nueva imagen
-            loadOverlayImage(styleName);
-        }
-
-        // Cargar el estilo por defecto al iniciar
-        changeStyle('Empresarias');
-
-        // Subir foto del usuario
-        document.getElementById('userImageUpload').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(f) {
-                const data = f.target.result;
-                
-                fabric.Image.fromURL(data, function(img) {
-                    // Tamaño inicial manejable
-                    if (img.width > 500) {
-                        img.scaleToWidth(500);
-                    }
-                    
-                    // Estilo de los controles
-                    img.setControlsVisibility({ mt: false, mb: false, ml: false, mr: false });
-                    img.set({
-                        borderColor: '#E30613',
-                        cornerColor: '#E30613',
-                        cornerSize: 15,
-                        transparentCorners: false,
-                        padding: 5
-                    });
-
-                    // La foto permanece sobre la plantilla de fondo.
-                    canvas.add(img);
-                    canvas.centerObject(img);
-                    canvas.setActiveObject(img);
-                    canvas.renderAll();
-
-                    // Habilitar descarga
-                    const downloadBtn = document.getElementById('downloadBtn');
-                    downloadBtn.disabled = !templateReady;
-                    downloadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                });
-            };
-            reader.readAsDataURL(file);
-            e.target.value = ''; // Reset
-        });
-
-        // Descarga de imagen
-        document.getElementById('downloadBtn').addEventListener('click', function() {
-            canvas.discardActiveObject();
-            canvas.renderAll();
-
-            const dataURL = canvas.toDataURL({
-                format: 'jpeg',
-                quality: 0.95
-            });
-
-            const a = document.createElement('a');
-            a.href = dataURL;
-            a.download = 'El_cambio_lo_hacemos_juntos.jpg';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        });
-
-        // Borrar imagen con teclado
-        window.addEventListener('keydown', function(e) {
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-                const activeObject = canvas.getActiveObject();
-                if (activeObject && activeObject.type !== 'image' && activeObject.type !== 'path') { // check to not delete background/overlay if somehow selected
-                    canvas.remove(activeObject);
-                } else if(activeObject) {
-                     canvas.remove(activeObject);
-                }
-            }
-        });
-
-        // --- Funciones para compartir en Redes Sociales ---
-        const shareText = "Yo apoyo a Liliana Silva y Lady Cedeño. ¡El cambio lo hacemos juntos! #SantoDomingo";
-        
-        function shareWhatsApp() {
-            const url = window.location.href;
-            const encodedText = encodeURIComponent(shareText + " " + url);
-            window.open(`https://api.whatsapp.com/send?text=${encodedText}`, '_blank');
-        }
-
-        function shareX() {
-            const url = encodeURIComponent(window.location.href);
-            const encodedText = encodeURIComponent(shareText);
-            window.open(`https://twitter.com/intent/tweet?text=${encodedText}&url=${url}`, '_blank');
-        }
-
-        function shareFacebook() {
-            const url = encodeURIComponent(window.location.href);
-            window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
-        }
-
-        // --- Funciones para Instagram y TikTok (Copiar y abrir) ---
-        let pendingUrl = '';
-
-        function copyCampaignText(url) {
-            const textArea = document.createElement("textarea");
-            textArea.value = shareText;
-            document.body.appendChild(textArea);
-            textArea.select();
-            try {
-                document.execCommand('copy');
-            } catch (err) {
-                console.error('Error al copiar al portapapeles', err);
-            }
-            document.body.removeChild(textArea);
-
-            pendingUrl = url;
-            document.getElementById('copyAlertModal').classList.remove('hidden');
-        }
-
-        function closeCopyAlert() {
-            document.getElementById('copyAlertModal').classList.add('hidden');
-            if (pendingUrl) {
-                window.open(pendingUrl, '_blank');
-                pendingUrl = '';
-            }
-        }
-
-        function shareInstagram() { copyCampaignText('https://www.instagram.com/'); }
-        function shareTikTok() { copyCampaignText('https://www.tiktok.com/'); }
-    </script>
-</body>
-</html>
+<body>
+<header><h1>¡El cambio lo hacemos juntos!</h1><p>Elige tu estilo, sube tu foto y revisa el montaje junto a Liliana Silva y Lady Cedeño antes de descargarlo.</p></header>
+<main class="layout">
+<section class="card controls" aria-label="Controles del montaje">
+<div><h2>1. Elige tu estilo</h2><div class="styles" id="styles">
+<button data-style="Empresarias" aria-pressed="true">Empresarias</button><button data-style="Deportistas" aria-pressed="false">Deportistas</button><button data-style="Graduadas" aria-pressed="false">Graduadas</button><button data-style="De_gala" aria-pressed="false">De Gala</button><button data-style="Viajeras" aria-pressed="false">Viajeras</button></div></div>
+<div><h2>2. Sube tu foto</h2><label class="upload">Elegir foto<input id="upload" type="file" accept="image/jpeg,image/png,image/webp"></label><p class="small">La IA quitará el fondo en tu dispositivo. La primera vez descarga el modelo y puede tardar unos minutos. Mantén esta página abierta.</p>
+<label for="photoType" class="range">Tipo de foto</label><select id="photoType"><option value="full">Cuerpo entero</option><option value="portrait">Selfie o medio cuerpo</option></select><p class="note" id="portraitNote" hidden>La selfie se coloca como retrato sin fondo. La reconstrucción de cuerpo completo aún no está disponible.</p>
+<div class="compare" id="compare" hidden><figure><img id="before" alt="Foto original"><figcaption>Original</figcaption></figure><figure><img id="after" alt="Persona sin fondo"><figcaption>Fondo eliminado</figcaption></figure></div>
+<button id="retry" class="secondary" hidden>Reintentar quitar fondo</button></div>
+<div class="adjust"><h2>3. Ajusta y previsualiza</h2><p class="small">La persona se ubica automáticamente a la izquierda. Puedes ajustar su tamaño y posición.</p>
+<label class="range" for="size">Tamaño</label><input id="size" type="range" min="50" max="140" value="100" disabled>
+<label class="range" for="horizontal">Posición horizontal</label><input id="horizontal" type="range" min="-140" max="160" value="0" disabled>
+<label class="range" for="vertical">Posición vertical</label><input id="vertical" type="range" min="-350" max="100" value="0" disabled>
+<button class="secondary" id="reset" disabled>Restablecer posición</button></div>
+<div><button id="download" class="primary" disabled>Descargar montaje en alta calidad</button><p class="small">La descarga conserva la composición que ves en la vista previa.</p></div>
+</section>
+<section class="card preview" aria-label="Vista previa del montaje"><div class="preview-head"><h2>Vista previa</h2><span class="badge">Antes de descargar</span></div><div id="status" class="status" role="status" aria-live="polite">Cargando plantilla…</div><progress id="progress" hidden></progress><canvas id="preview" width="1600" height="2048" aria-label="Resultado del montaje"></canvas></section>
+</main><footer>Eliminación de fondo con <a href="https://github.com/imgly/background-removal-js" target="_blank" rel="noopener">IMG.LY</a>. Las fotos se procesan localmente. <a href="https://github.com/ajaramillo1983/elcambiolohacemosjuntos" target="_blank" rel="noopener">Código fuente</a>.</footer>
+<script type="module">
+const $=id=>document.getElementById(id);
+const W=1600,H=2048,TX=448,TW=1152;
+const canvas=$('preview'),ctx=canvas.getContext('2d');
+const state={style:'Empresarias',template:null,person:null,source:null,busy:false,templateBusy:false,photoToken:0,styleToken:0,sourceUrl:null,cutoutUrl:null};
+let removerPromise;
+function status(text,kind=''){ $('status').textContent=text;$('status').className='status '+kind; }
+function sync(){ $('upload').disabled=state.busy;$('photoType').disabled=state.busy; const ready=!!state.person&&!state.busy; for(const id of ['size','horizontal','vertical','reset'])$(id).disabled=!ready; $('download').disabled=!ready||!state.template||state.templateBusy; }
+function loadImage(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('No se pudo abrir la imagen.'));im.src=src;});}
+function reset(){for(const id of ['horizontal','vertical'])$(id).value=0;$('size').value=100;draw();}
+function draw(){
+ ctx.clearRect(0,0,W,H);ctx.fillStyle='#eee';ctx.fillRect(0,0,W,H);
+ if(!state.template)return;
+ const im=state.template,sh=im.naturalHeight,sw=im.naturalWidth;
+ // Amplía únicamente el borde de la escena para reservar espacio a la izquierda.
+ ctx.drawImage(im,0,0,Math.min(sw*.15,180),sh,0,0,TX,H);
+ ctx.drawImage(im,0,0,sw,sh,TX,0,TW,H);
+ const shade=ctx.createLinearGradient(0,0,TX,0);shade.addColorStop(0,'rgba(0,0,0,.08)');shade.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=shade;ctx.fillRect(0,0,TX,H);
+ if(!state.person)return;
+ const p=state.person,portrait=$('photoType').value==='portrait';
+ const baseHeight=portrait?H*.47:H*.68;
+ const scale=Math.min(baseHeight/p.height,650/p.width)*Number($('size').value)/100;
+ const pw=p.width*scale,ph=p.height*scale;
+ const x=310-pw/2+Number($('horizontal').value),y=H-48-ph+Number($('vertical').value);
+ if(!portrait){ctx.save();ctx.fillStyle='rgba(0,0,0,.22)';ctx.filter='blur(16px)';ctx.beginPath();ctx.ellipse(x+pw/2,y+ph-2,pw*.31,18,0,0,Math.PI*2);ctx.fill();ctx.restore();}
+ ctx.save();ctx.shadowColor='rgba(0,0,0,.18)';ctx.shadowBlur=12;ctx.shadowOffsetX=5;ctx.shadowOffsetY=5;ctx.drawImage(p,x,y,pw,ph);ctx.restore();
+}
+async function selectStyle(style){const token=++state.styleToken;state.style=style;state.templateBusy=true;sync();document.querySelectorAll('[data-style]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.style===style)));if(!state.busy)status('Cargando plantilla…','busy');
+ try{const im=await loadImage('imagenes/'+style+'.jpg');if(token!==state.styleToken)return;state.template=im;state.templateBusy=false;draw();sync();if(!state.busy)status(state.person?'Montaje actualizado. Revisa la vista previa antes de descargar.':'Plantilla lista. Sube tu foto para crear el montaje.');}
+ catch(e){if(token!==state.styleToken)return;state.template=null;state.templateBusy=false;draw();sync();if(!state.busy)status('No se pudo cargar la plantilla. Vuelve a elegir el estilo.','error');}}
+function trim(im){const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const q=c.getContext('2d',{willReadFrequently:true});q.drawImage(im,0,0);const {data}=q.getImageData(0,0,c.width,c.height);let x0=c.width,y0=c.height,x1=0,y1=0;for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++)if(data[(y*c.width+x)*4+3]>40){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);}if(x1<=x0||y1<=y0)throw new Error('No se detectó una persona. Prueba una foto más clara.');const out=document.createElement('canvas');out.width=x1-x0+1;out.height=y1-y0+1;out.getContext('2d').drawImage(c,x0,y0,out.width,out.height,0,0,out.width,out.height);return out;}
+async function normalize(file){const src=URL.createObjectURL(file);try{const im=await loadImage(src);const c=document.createElement('canvas');const k=Math.min(1,1800/Math.max(im.naturalWidth,im.naturalHeight));c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);return await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error('No se pudo leer la foto.')),'image/png'));}finally{URL.revokeObjectURL(src);}}
+async function processPhoto(){
+ const file=state.source;if(!file)return;const token=++state.photoToken;state.busy=true;state.person=null;$('after').removeAttribute('src');$('compare').hidden=true;$('retry').hidden=true;$('progress').hidden=false;$('progress').removeAttribute('value');draw();sync();status('Preparando la foto y descargando el modelo de IA…','busy');
+ try{
+ const input=await normalize(file);
+ removerPromise??=import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/index.mjs').catch(e=>{removerPromise=null;throw e;});
+ const module=await removerPromise;if(token!==state.photoToken)return;
+ const blob=await module.removeBackground(input,{model:'small',device:'cpu',proxyToWorker:false,output:{format:'image/png'},progress:(key,current,total)=>{if(token!==state.photoToken)return;const download=key.startsWith('fetch:');status(download?'Descargando el modelo de IA. La primera vez puede tardar unos minutos…':'La IA está separando la persona del fondo…','busy');if(total>0){$('progress').max=total;$('progress').value=current;}else $('progress').removeAttribute('value');}});
+ if(token!==state.photoToken)return;const url=URL.createObjectURL(blob);let im;try{im=await loadImage(url);}catch(e){URL.revokeObjectURL(url);throw e;}if(token!==state.photoToken){URL.revokeObjectURL(url);return;}
+ state.person=trim(im);if(state.cutoutUrl)URL.revokeObjectURL(state.cutoutUrl);state.cutoutUrl=url;$('after').src=url;$('compare').hidden=false;reset();status('Fondo eliminado. Revisa el montaje y ajusta tamaño y posición.');
+ }catch(e){if(token!==state.photoToken)return;console.error(e);state.person=null;$('retry').hidden=false;status(e.message?.startsWith('No se detectó')?e.message:'No se pudo quitar el fondo. Comprueba tu conexión y pulsa Reintentar. También puedes probar otra foto JPG o PNG.','error');}
+ finally{if(token===state.photoToken){state.busy=false;$('progress').hidden=true;sync();}}
+}
+$('upload').addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;if(file.size>20*1024*1024){status('La foto supera los 20 MB. Elige una imagen más pequeña.','error');return;}state.source=file;if(state.sourceUrl)URL.revokeObjectURL(state.sourceUrl);state.sourceUrl=URL.createObjectURL(file);$('before').src=state.sourceUrl;processPhoto();e.target.value='';});
+$('retry').onclick=processPhoto;
+$('styles').addEventListener('click',e=>{const b=e.target.closest('[data-style]');if(b)selectStyle(b.dataset.style);});
+for(const id of ['size','horizontal','vertical'])$(id).oninput=draw;
+$('photoType').onchange=()=>{$('portraitNote').hidden=$('photoType').value!=='portrait';reset();};
+$('reset').onclick=reset;
+$('download').onclick=()=>{if($('download').disabled)return;draw();canvas.toBlob(blob=>{if(!blob){status('No se pudo crear la descarga. Inténtalo de nuevo.','error');return;}const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='El_cambio_'+state.style+'.png';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);},'image/png');};
+selectStyle('Empresarias');
+</script></body></html>
