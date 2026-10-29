@@ -118,9 +118,19 @@ def test_google_image_response(settings, monkeypatch):
         async def __aenter__(self): return self
         async def __aexit__(self, *args): pass
         async def post(self, url, **kwargs):
-            assert kwargs['json']['generationConfig']['responseModalities'] == ['TEXT', 'IMAGE']
+            body = kwargs['json']
+            assert body['generationConfig']['responseModalities'] == ['TEXT', 'IMAGE']
+            assert body['generationConfig']['imageConfig']['aspectRatio'] == '4:5'
+            images = [p['inlineData'] for p in body['contents'][0]['parts'] if 'inlineData' in p]
+            assert len(images) == 2
+            assert images[0]['mimeType'] == 'image/png'
+            assert base64.b64decode(images[0]['data']).startswith(b'\x89PNG')
+            assert images[1]['data'] == picture()
             return httpx.Response(200,json={'candidates':[{'content':{'parts':[{'inlineData':{'mimeType':'image/png','data':picture()}}]}}]})
     monkeypatch.setattr(main.httpx, 'AsyncClient', FakeClient)
     import asyncio
     result=asyncio.run(main.generate_person(settings,picture(),'Graduadas'))
     assert result['generated'] is True
+
+    assert result['composition'] == 'scene'
+    assert result['style'] == 'Graduadas'

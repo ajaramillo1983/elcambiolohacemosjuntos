@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>El cambio lo hacemos juntos · Crea tu foto</title>
 <script src="backend-config.js"></script>
-<script type="importmap">{"imports":{"onnxruntime-web":"https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.wasm.min.mjs","onnxruntime-web/webgpu":"https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.webgpu.min.mjs"}}</script>
+
 <style>
 :root{font-family:Arial,sans-serif;color:#20232a;background:#f5f5f7;--red:#d80820}*{box-sizing:border-box}body{margin:0}header{max-width:1200px;margin:auto;padding:32px 24px 20px}h1{font-size:clamp(26px,4vw,42px);margin:8px 0;color:var(--red)}h2{font-size:19px;margin:0 0 14px}p{line-height:1.55}header p{max-width:720px;color:#565b66;margin-bottom:0}.layout{max-width:1200px;margin:auto;display:grid;grid-template-columns:360px 1fr;gap:24px;padding:16px 24px 40px}.card{background:#fff;border:1px solid #e5e5ea;border-radius:20px;padding:22px;box-shadow:0 8px 28px #00000005}.controls{align-self:start;display:grid;gap:22px}.styles{display:flex;gap:8px;flex-wrap:wrap}button,.upload{font:inherit;border:1px solid #d6d7dd;border-radius:12px;padding:11px 14px;cursor:pointer;background:#fff;color:inherit;text-align:center}.styles button[aria-pressed="true"]{background:var(--red);border-color:var(--red);color:white}.primary,.upload{display:block;width:100%;background:var(--red);color:#fff;border-color:var(--red);font-weight:bold}.secondary{width:100%;margin-top:10px}button:disabled{opacity:.45;cursor:not-allowed}.upload input{position:absolute;width:1px;height:1px;opacity:0}.upload:focus-within{outline:3px solid #3979d2;outline-offset:3px}.small{font-size:13px;color:#656b75;margin:10px 0}.preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.badge{background:#edf6f0;color:#23643a;font-size:12px;padding:6px 10px;border-radius:20px}canvas{display:block;width:100%;height:auto;border-radius:12px;background:#eee}.preview{align-self:start;position:sticky;top:20px}.status{font-size:14px;line-height:1.5;margin:12px 0;min-height:24px}.status.error{color:#a21123}.status.busy{color:#6c4e00}progress{width:100%;height:8px;accent-color:var(--red)}label.range{display:block;margin:15px 0 4px;font-size:14px}input[type=range]{width:100%;accent-color:var(--red)}select{width:100%;padding:10px;border:1px solid #d6d7dd;border-radius:10px;background:white;font:inherit}.compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.compare figure{margin:0}.compare img{width:100%;height:130px;object-fit:contain;background:repeating-conic-gradient(#eee 0% 25%,#fff 0% 50%) 50%/16px 16px;border-radius:10px}.compare figcaption{font-size:12px;margin:6px 0;color:#656b75}[hidden]{display:none!important}.note{padding:12px;border-radius:10px;background:#fff5e6;font-size:13px;line-height:1.5}a{color:#9f1020}footer{font-size:12px;color:#777;padding:0 24px 24px;text-align:center}@media(max-width:760px){.layout{grid-template-columns:1fr;padding:8px 14px 24px;gap:16px}header{padding:22px 16px 12px}.preview{position:static;grid-row:2}.card{padding:17px}.controls{gap:18px}canvas{max-height:78vh;object-fit:contain}.adjust{margin-top:10px}}
 </style>
@@ -15,37 +15,38 @@
 <section class="card controls" aria-label="Controles del montaje">
 <div><h2>1. Elige tu estilo</h2><div class="styles" id="styles">
 <button data-style="Empresarias" aria-pressed="true">Empresarias</button><button data-style="Deportistas" aria-pressed="false">Deportistas</button><button data-style="Graduadas" aria-pressed="false">Graduadas</button><button data-style="De_gala" aria-pressed="false">De Gala</button><button data-style="Viajeras" aria-pressed="false">Viajeras</button></div></div>
-<div><h2>2. Sube tu foto</h2><label class="upload">Elegir foto<input id="upload" type="file" accept="image/jpeg,image/png,image/webp"></label><p class="small">La IA quitará el fondo en tu dispositivo. La primera vez descarga el modelo y puede tardar unos minutos. Mantén esta página abierta.</p>
-<label for="photoType" class="range">Tipo de foto</label><select id="photoType"><option value="full">Cuerpo entero</option><option value="portrait">Selfie o medio cuerpo</option></select><p class="note" id="portraitNote" hidden>La selfie se coloca como retrato sin fondo. Cuando el servicio esté conectado, podrás generar un cuerpo completo y revisar el resultado.</p>
-<div id="generationPanel" hidden><label for="pilotCode" class="range">Código de acceso del piloto</label><input id="pilotCode" type="password" autocomplete="off" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:10px">
-<label class="small" style="display:block"><input id="consent" type="checkbox"> Autorizo enviar esta foto a Google para generar un cuerpo completo. El resultado será sintético y debo revisar el parecido.</label>
-<button id="generateBody" class="secondary" disabled>Generar cuerpo completo con IA</button><p class="small">Se consume una generación por intento. Las candidatas y el texto de la plantilla se conservan originales.</p></div>
-<div class="compare" id="compare" hidden><figure><img id="before" alt="Foto original"><figcaption>Original</figcaption></figure><figure><img id="after" alt="Persona sin fondo"><figcaption>Fondo eliminado</figcaption></figure></div>
+<div><h2>2. Sube tu foto</h2><label class="upload">Elegir foto<input id="upload" type="file" accept="image/jpeg,image/png,image/webp"></label><p class="small">Sube una foto nítida de una sola persona, con el rostro visible. Después pulsa Crear montaje con IA para adaptar vestimenta, cuerpo, iluminación y perspectiva a la escena.</p>
+<div hidden><label for="photoType" class="range">Tipo de foto</label><select id="photoType"><option value="full">Cuerpo entero</option><option value="portrait">Selfie o medio cuerpo</option></select><p class="note" id="portraitNote" hidden>La selfie se coloca como retrato sin fondo. Cuando el servicio esté conectado, podrás generar un cuerpo completo y revisar el resultado.</p>
+</div><div id="generationPanel" hidden><label for="pilotCode" class="range">Código de acceso del piloto</label><input id="pilotCode" type="password" autocomplete="off" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:10px">
+<label class="small" style="display:block"><input id="consent" type="checkbox"> Autorizo enviar mi foto y la plantilla a Google para crear el montaje. Revisaré el rostro y la anatomía: la IA puede modificar rasgos.</label>
+<button id="generateBody" class="secondary" disabled>Crear montaje con IA</button><p class="small">Introduce el código del piloto para habilitar el botón. Cada intento consume una generación. Se solicita conservar los rostros y el texto, pero debes revisar que la IA no los haya alterado.</p></div>
+<div class="compare" id="compare" hidden><figure><img id="before" alt="Foto original"><figcaption>Original</figcaption></figure><figure><img id="after" alt="Montaje de IA"><figcaption>Resultado de IA</figcaption></figure></div>
 <button id="retry" class="secondary" hidden>Reintentar quitar fondo</button></div>
-<div class="adjust"><h2>3. Ajusta y previsualiza</h2><p class="small">La persona se ubica automáticamente a la izquierda. Puedes ajustar su tamaño y posición.</p>
+<div class="adjust" hidden><h2>3. Ajusta y previsualiza</h2><p class="small">La persona se ubica automáticamente a la izquierda. Puedes ajustar su tamaño y posición.</p>
 <label class="range" for="size">Tamaño</label><input id="size" type="range" min="50" max="140" value="100" disabled>
 <label class="range" for="horizontal">Posición horizontal</label><input id="horizontal" type="range" min="-140" max="160" value="0" disabled>
 <label class="range" for="vertical">Posición vertical</label><input id="vertical" type="range" min="-350" max="100" value="0" disabled>
 <button class="secondary" id="reset" disabled>Restablecer posición</button></div>
 <div><button id="download" class="primary" disabled>Descargar montaje en alta calidad</button><p class="small">La descarga conserva la composición que ves en la vista previa.</p></div>
 </section>
-<section class="card preview" aria-label="Vista previa del montaje"><div class="preview-head"><h2>Vista previa</h2><span class="badge">Antes de descargar</span></div><div id="status" class="status" role="status" aria-live="polite">Cargando plantilla…</div><progress id="progress" hidden></progress><canvas id="preview" width="1600" height="2048" aria-label="Resultado del montaje"></canvas></section>
-</main><footer>Eliminación de fondo con <a href="https://github.com/imgly/background-removal-js" target="_blank" rel="noopener">IMG.LY</a>. El recorte se procesa localmente; la generación opcional envía la foto a Google. <a href="https://github.com/ajaramillo1983/elcambiolohacemosjuntos" target="_blank" rel="noopener">Código fuente</a>.</footer>
+<section class="card preview" aria-label="Vista previa del montaje"><div class="preview-head"><h2>Vista previa</h2><span class="badge">Plantilla · sin generar</span></div><div id="status" class="status" role="status" aria-live="polite">Cargando plantilla…</div><progress id="progress" hidden></progress><canvas id="preview" width="1600" height="2048" aria-label="Resultado del montaje"></canvas></section>
+</main><footer>El montaje envía tu foto y la plantilla a Google. El resultado es sintético y requiere revisión. <a href="https://github.com/ajaramillo1983/elcambiolohacemosjuntos" target="_blank" rel="noopener">Código fuente</a>.</footer>
 <script type="module">
 const $=id=>document.getElementById(id);
 const W=1600,H=2048;
 const canvas=$('preview'),ctx=canvas.getContext('2d');
-const state={style:'Empresarias',template:null,person:null,source:null,busy:false,templateBusy:false,photoToken:0,styleToken:0,sourceUrl:null,cutoutUrl:null,generated:false,retryFile:null,retryGenerated:false};
-let removerPromise;
+const state={scene:null,style:'Empresarias',template:null,person:null,source:null,busy:false,templateBusy:false,photoToken:0,styleToken:0,sourceUrl:null,cutoutUrl:null,generated:false,retryFile:null,retryGenerated:false};
+
 const apiBase=String(window.EL_CAMBIO_API_BASE||'').replace(/\/$/,'');
 const generationConfigured=/^https:\/\/[^/]+(?:\/[^?#]*)?$/.test(apiBase);
 $('generationPanel').hidden=!generationConfigured;
 function status(text,kind=''){ $('status').textContent=text;$('status').className='status '+kind; }
-function sync(){ $('generateBody').disabled=!generationConfigured||!state.source||state.busy||!$('consent').checked||!$('pilotCode').value;document.querySelectorAll('[data-style]').forEach(b=>b.disabled=state.busy);$('upload').disabled=state.busy;$('photoType').disabled=state.busy; const ready=!!state.person&&!state.busy; for(const id of ['size','horizontal','vertical','reset'])$(id).disabled=!ready; $('download').disabled=!ready||!state.template||state.templateBusy; }
+function sync(){ $('generateBody').disabled=!generationConfigured||!state.source||state.busy||state.templateBusy||!state.template||!$('consent').checked||!$('pilotCode').value;document.querySelectorAll('[data-style]').forEach(b=>b.disabled=state.busy);$('upload').disabled=state.busy;$('photoType').disabled=state.busy; const ready=!!state.person&&!state.busy; for(const id of ['size','horizontal','vertical','reset'])$(id).disabled=!ready; $('download').disabled=!state.scene||state.busy||state.templateBusy; document.querySelector('.badge').textContent=state.scene?'Montaje de IA · revisar':'Plantilla · sin generar'; }
 function loadImage(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('No se pudo abrir la imagen.'));im.src=src;});}
 function reset(){for(const id of ['horizontal','vertical'])$(id).value=0;$('size').value=100;draw();}
 function draw(){
  ctx.clearRect(0,0,W,H);ctx.fillStyle='#eee';ctx.fillRect(0,0,W,H);
+ if(state.scene){const im=state.scene;const k=Math.min(W/im.naturalWidth,H/im.naturalHeight);ctx.drawImage(im,(W-im.naturalWidth*k)/2,(H-im.naturalHeight*k)/2,im.naturalWidth*k,im.naturalHeight*k);return;}
  if(!state.template)return;
  const im=state.template,sh=im.naturalHeight,sw=im.naturalWidth;
  // Plantilla completa ampliada con IA: una sola imagen, escala uniforme.
@@ -60,25 +61,12 @@ function draw(){
  if(!portrait){ctx.save();ctx.fillStyle='rgba(0,0,0,.22)';ctx.filter='blur(16px)';ctx.beginPath();ctx.ellipse(x+pw/2,y+ph-2,pw*.31,18,0,0,Math.PI*2);ctx.fill();ctx.restore();}
  ctx.save();ctx.shadowColor='rgba(0,0,0,.18)';ctx.shadowBlur=12;ctx.shadowOffsetX=5;ctx.shadowOffsetY=5;ctx.drawImage(p,x,y,pw,ph);ctx.restore();
 }
-async function selectStyle(style){const token=++state.styleToken;state.style=style;state.templateBusy=true;sync();document.querySelectorAll('[data-style]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.style===style)));if(!state.busy)status('Cargando plantilla…','busy');
- try{const im=await loadImage('imagenes/ampliadas/'+style+'.png');if(token!==state.styleToken)return;state.template=im;state.templateBusy=false;draw();sync();if(!state.busy)status(state.person?'Montaje actualizado. Revisa la vista previa antes de descargar.':'Plantilla lista. Sube tu foto para crear el montaje.');}
+async function selectStyle(style){const token=++state.styleToken;state.style=style;state.scene=null;state.person=null;$('compare').hidden=true;state.templateBusy=true;sync();document.querySelectorAll('[data-style]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.style===style)));if(!state.busy)status('Cargando plantilla…','busy');
+ try{const im=await loadImage('imagenes/ampliadas/'+style+'.png');if(token!==state.styleToken)return;state.template=im;state.templateBusy=false;draw();sync();if(!state.busy)status(state.person?'Montaje actualizado. Revisa la vista previa antes de descargar.':state.source?'Estilo cambiado. Pulsa Crear montaje con IA para integrar tu foto en esta escena.':'Plantilla lista. Sube tu foto y después crea el montaje con IA.');}
  catch(e){if(token!==state.styleToken)return;state.template=null;state.templateBusy=false;draw();sync();if(!state.busy)status('No se pudo cargar la plantilla. Vuelve a elegir el estilo.','error');}}
-function trim(im){const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const q=c.getContext('2d',{willReadFrequently:true});q.drawImage(im,0,0);const {data}=q.getImageData(0,0,c.width,c.height);let x0=c.width,y0=c.height,x1=0,y1=0;for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++)if(data[(y*c.width+x)*4+3]>40){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);}if(x1<=x0||y1<=y0)throw new Error('No se detectó una persona. Prueba una foto más clara.');const out=document.createElement('canvas');out.width=x1-x0+1;out.height=y1-y0+1;out.getContext('2d').drawImage(c,x0,y0,out.width,out.height,0,0,out.width,out.height);return out;}
 async function normalize(file){const src=URL.createObjectURL(file);try{const im=await loadImage(src);const c=document.createElement('canvas');const k=Math.min(1,1800/Math.max(im.naturalWidth,im.naturalHeight));c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);return await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error('No se pudo leer la foto.')),'image/png'));}finally{URL.revokeObjectURL(src);}}
-async function processPhoto(file=state.source,generated=false){
- if(!file)return;state.retryFile=file;state.retryGenerated=generated;const token=++state.photoToken;state.busy=true;state.person=null;state.generated=generated;$('after').removeAttribute('src');$('compare').hidden=true;$('retry').hidden=true;$('progress').hidden=false;$('progress').removeAttribute('value');draw();sync();status('Preparando la foto y descargando el modelo de IA…','busy');
- try{
- const input=await normalize(file);
- removerPromise??=import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/index.mjs').catch(e=>{removerPromise=null;throw e;});
- const module=await removerPromise;if(token!==state.photoToken)return;
- const blob=await module.removeBackground(input,{model:'small',device:'cpu',proxyToWorker:false,output:{format:'image/png'},progress:(key,current,total)=>{if(token!==state.photoToken)return;const download=key.startsWith('fetch:');status(download?'Descargando el modelo de IA. La primera vez puede tardar unos minutos…':'La IA está separando la persona del fondo…','busy');if(total>0){$('progress').max=total;$('progress').value=current;}else $('progress').removeAttribute('value');}});
- if(token!==state.photoToken)return;const url=URL.createObjectURL(blob);let im;try{im=await loadImage(url);}catch(e){URL.revokeObjectURL(url);throw e;}if(token!==state.photoToken){URL.revokeObjectURL(url);return;}
- state.person=trim(im);if(state.cutoutUrl)URL.revokeObjectURL(state.cutoutUrl);state.cutoutUrl=url;$('after').src=url;$('compare').hidden=false;reset();status('Fondo eliminado. Revisa el montaje y ajusta tamaño y posición.');
- }catch(e){if(token!==state.photoToken)return;console.error(e);state.person=null;$('retry').hidden=false;status(e.message?.startsWith('No se detectó')?e.message:'No se pudo quitar el fondo. Comprueba tu conexión y pulsa Reintentar. También puedes probar otra foto JPG o PNG.','error');}
- finally{if(token===state.photoToken){state.busy=false;$('progress').hidden=true;sync();}}
-}
-$('upload').addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;if(file.size>20*1024*1024){status('La foto supera los 20 MB. Elige una imagen más pequeña.','error');return;}state.source=file;if(state.sourceUrl)URL.revokeObjectURL(state.sourceUrl);state.sourceUrl=URL.createObjectURL(file);$('before').src=state.sourceUrl;processPhoto();e.target.value='';});
-$('retry').onclick=()=>processPhoto(state.retryFile||state.source,state.retryGenerated);
+$('upload').addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;if(file.size>20*1024*1024){status('La foto supera los 20 MB. Elige una imagen más pequeña.','error');return;}state.source=file;if(state.sourceUrl)URL.revokeObjectURL(state.sourceUrl);state.sourceUrl=URL.createObjectURL(file);$('before').src=state.sourceUrl;state.scene=null;state.person=null;state.photoToken++;$('compare').hidden=true;$('retry').hidden=true;draw();sync();status('Foto lista. Introduce el código del piloto, autoriza el envío y pulsa Crear montaje con IA.');e.target.value='';});
+
 $('styles').addEventListener('click',e=>{const b=e.target.closest('[data-style]');if(b)selectStyle(b.dataset.style);});
 for(const id of ['size','horizontal','vertical'])$(id).oninput=draw;
 $('photoType').onchange=()=>{$('portraitNote').hidden=$('photoType').value!=='portrait';reset();};
@@ -87,16 +75,23 @@ $('download').onclick=()=>{if($('download').disabled)return;draw();canvas.toBlob
 $('consent').onchange=sync;$('pilotCode').oninput=sync;
 $('generateBody').onclick=async()=>{
  if($('generateBody').disabled)return;
- const token=++state.photoToken;state.busy=true;sync();$('progress').hidden=false;$('progress').removeAttribute('value');status('Generando el cuerpo completo. Este paso puede tardar unos minutos…','busy');
+ const token=++state.photoToken;state.busy=true;sync();$('progress').hidden=false;$('progress').removeAttribute('value');status('Creando la escena completa: vestimenta, cuerpo, perspectiva y luz. Puede tardar unos minutos…','busy');
  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),175000);
  try{
+ const health=await fetch(apiBase+'/api/health',{signal:controller.signal,cache:'no-store'});
+ if(!health.ok||(await health.json()).composition!=='scene')throw new Error('El servidor se está actualizando. Espera un minuto y recarga la página. No se ha solicitado ninguna generación.');
  const blob=await normalize(state.source);const bytes=new Uint8Array(await blob.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
  const response=await fetch(apiBase+'/api/persona/generar',{method:'POST',headers:{'Content-Type':'application/json','X-El-Cambio-Code':$('pilotCode').value},body:JSON.stringify({image_base64:btoa(binary),mime_type:'image/png',style:state.style,consent:true}),signal:controller.signal});
  const result=await response.json();if(!response.ok)throw new Error(typeof result.detail==='string'?result.detail:'No se pudo generar la imagen.');
+ if(result.composition!=='scene')throw new Error('El servidor se está actualizando. Espera un minuto y recarga la página antes de volver a generar.');
  if(!['image/png','image/jpeg','image/webp'].includes(result.mime_type)||!result.image_base64)throw new Error('El servicio no devolvió una imagen válida.');
  const raw=atob(result.image_base64);const output=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)output[i]=raw.charCodeAt(i);
- clearTimeout(timer);state.busy=false;await processPhoto(new Blob([output],{type:result.mime_type}),true);
- if(state.person)status('Cuerpo generado y fondo eliminado. Revisa el rostro, la anatomía y la posición antes de descargar.');
+ const url=URL.createObjectURL(new Blob([output],{type:result.mime_type}));
+ let scene;try{scene=await loadImage(url);}catch(e){URL.revokeObjectURL(url);throw e;}
+ if(token!==state.photoToken){URL.revokeObjectURL(url);return;}
+ if(state.cutoutUrl)URL.revokeObjectURL(state.cutoutUrl);state.cutoutUrl=url;
+ state.scene=scene;state.person=null;$('after').src=url;$('compare').hidden=false;draw();
+ status('Montaje de IA listo. Revisa el parecido del rostro, manos, ropa y texto antes de descargar. Si hay deformaciones, usa otra foto nítida o genera una nueva versión.');
  }catch(e){if(token===state.photoToken)status(e.name==='AbortError'?'La generación tardó demasiado. Puede continuar en el servidor; evita repetir el intento inmediatamente.':e.message==='Failed to fetch'?'No se pudo conectar con el servicio de imágenes. Intenta más tarde.':e.message,'error');}
  finally{clearTimeout(timer);if(token===state.photoToken){state.busy=false;$('progress').hidden=true;sync();}}
 };

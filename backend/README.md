@@ -64,3 +64,7 @@ pytest -q
 
 Las pruebas usan respuestas simuladas. No generan imágenes, no usan claves reales ni consumen crédito.
 Documentación del proveedor: https://ai.google.dev/gemini-api/docs/generate-content/image-generation
+
+
+## Montaje integrado (octubre 2026)
+La generación recibe dos referencias: la plantilla local elegida y la foto normalizada del usuario. Devuelve una escena completa (composition: scene); el navegador muestra esa imagen sin recortarla ni pegarla sobre otro fondo. Cambiar estilo o foto invalida el resultado y exige una nueva generación explícita. La descarga permanece deshabilitada hasta tener un montaje de IA. El prompt solicita preservar identidad, candidatas y texto, pero no garantiza coincidencia facial exacta ni preservación píxel a píxel. Revisar cada resultado; no prometer rostro intacto. No hay reintentos de pago automáticos.

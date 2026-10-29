@@ -108,22 +108,46 @@ def reserve_attempt(settings: Settings, client_ip: str):
 
 
 async def generate_person(settings: Settings, encoded: str, style: str) -> dict:
-    # No se envían las candidatas ni el eslogan al generador: permanecen originales en el montaje.
+    # Plantilla confiable del repositorio; ninguna URL ni ruta proviene del cliente.
+    template_path = Path(__file__).resolve().parent.parent / 'imagenes' / 'ampliadas' / f'{style}.png'
+    if style not in STYLES or not template_path.is_file():
+        raise HTTPException(503, 'La plantilla de este estilo no está disponible.')
+    template = base64.b64encode(template_path.read_bytes()).decode('ascii')
     prompt = (
-        'Create a photorealistic, isolated full-length portrait of the ONE person in the reference photo. '
-        'Preserve their facial identity, apparent age, hair, skin tone and expression as faithfully as possible. '
-        'Do not beautify, rejuvenate or substitute another face. '
-        'Keep visible body proportions. If the source is a selfie or cropped, complete the missing body '
-        'with plausible natural anatomy; do not claim to recover actual measurements. '
-        'Standing naturally, head to shoes fully in frame, feet visible, arms relaxed and entirely visible, '
-        'camera at eye level, normal perspective, person looking at camera, ample margin around silhouette. '
-        f'Clothing and lighting: {STYLES[style]}. '
-        'Use a plain uniform light gray background with no objects, no other people, no words, no logos, '
-        'no frame, no decorative elements. Return a single image suitable for cutting out and compositing.'
+        'Make ONE finished professional photorealistic group photograph using both references. '
+        'IMAGE 1 is the scene template with TWO existing women and a campaign slogan. '
+        'IMAGE 2 is the identity reference of the ONE additional person to integrate. '
+        'Keep the scene framing, aspect ratio, two existing women, their faces, clothes, '
+        'poses and the exact slogan and logo of IMAGE 1 unchanged. Do not crop the slogan. '
+        'Add the person from IMAGE 2 in the open LEFT foreground, naturally beside the two women, '
+        'without covering their faces or the slogan. Exactly THREE people in the final scene. '
+        'Highest priority: faithfully retain the added person\'s facial identity, exact facial features, '
+        'expression, apparent age, skin tone, hairline and hairstyle from IMAGE 2. '
+        'Do not beautify, slim the face, rejuvenate, average faces or borrow the other women\'s features. '
+        'Remove the source background completely. Dress the added person in '
+        f'{STYLES[style]}. '
+        'If cropped or a selfie, complete the missing body with plausible age-appropriate anatomy '
+        'and natural proportions consistent with visible shoulders and build; do not stretch the selfie. '
+        'Show a complete natural body and shoes within the frame. Relaxed hands, correct fingers. '
+        'Match the scene camera height, perspective, ground plane and the apparent head sizes of '
+        'the two existing women. The added person must not look oversized or miniature. '
+        'Match directional light, white balance, exposure, color temperature, grain, sharpness and '
+        'depth of field. Add realistic ground contact shadows and ambient occlusion. '
+        'For the beach use warm sunset rim light and feet resting naturally on the sand; for other '
+        'scenes match their floor and lighting. No floating feet, cut edges, halos, sticker look, '
+        'distorted limbs, duplicated parts or isolated studio portrait. '
+        'Return the COMPLETE integrated group scene, not a cutout or a separate person. '
+        'Output one portrait 4:5 image with the entire original template composition visible.'
     )
     body = {
-        'contents': [{'parts': [{'text': prompt}, {'inlineData': {'mimeType': 'image/jpeg', 'data': encoded}}]}],
-        'generationConfig': {'responseModalities': ['TEXT', 'IMAGE'], 'imageConfig': {'aspectRatio': '2:3'}},
+        'contents': [{'parts': [
+            {'text': prompt},
+            {'text': 'IMAGE 1: scene to preserve and edit'},
+            {'inlineData': {'mimeType': 'image/png', 'data': template}},
+            {'text': 'IMAGE 2: identity reference of the additional person'},
+            {'inlineData': {'mimeType': 'image/jpeg', 'data': encoded}},
+        ]}],
+        'generationConfig': {'responseModalities': ['TEXT', 'IMAGE'], 'imageConfig': {'aspectRatio': '4:5'}},
     }
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(150, connect=15)) as client:
@@ -159,7 +183,7 @@ async def generate_person(settings: Settings, encoded: str, style: str) -> dict:
                         continue
                     with Image.open(io.BytesIO(raw)) as image:
                         image.verify()
-                    return {'image_base64': encoded_output, 'mime_type': mime, 'generated': True}
+                    return {'image_base64': encoded_output, 'mime_type': mime, 'generated': True, 'composition': 'scene', 'style': style}
     except (ValueError, TypeError, KeyError, OSError, Image.DecompressionBombError):
         raise HTTPException(502, 'El proveedor devolvió una imagen no válida.') from None
     raise HTTPException(422, 'La IA no devolvió una imagen. Prueba otra foto clara de una sola persona.')
@@ -194,7 +218,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def health():
         return {'status': 'ok', 'service': 'elcambio-ia-backend',
                 'generation_ready': bool(settings.enabled and settings.api_key and len(settings.access_code) >= 12),
-                'access_code_required': True}
+                'access_code_required': True, 'composition': 'scene'}
 
     @app.post('/api/persona/generar')
     async def generate(payload: GenerateInput, request: Request):
