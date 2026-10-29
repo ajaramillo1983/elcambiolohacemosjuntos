@@ -63,7 +63,7 @@
                 ¡El cambio lo hacemos juntos!
             </h1>
             <p class="text-gray-600 text-lg md:text-xl font-medium">
-                Sube tu foto de cuerpo entero, descarga la imagen y aparecerás junto a Liliana Silva y Lady Cedeño.
+                Elige una plantilla y sube tu foto. Arrástrala y ajusta su tamaño antes de descargar. Para una composición sin bordes, utiliza una foto PNG con fondo transparente.
             </p>
         </div>
     </header>
@@ -109,8 +109,8 @@
     
     <!-- Aviso de carga local -->
     <div id="missingBgAlert" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-6 max-w-2xl w-full rounded shadow" role="alert">
-        <p class="font-bold">Cargando imagen...</p>
-        <p>Si la imagen del estilo no aparece, asegúrate de haber creado la carpeta <strong>imagenes</strong> y subido los archivos PNG con los nombres correctos en GitHub.</p>
+        <p class="font-bold">No se pudo cargar la imagen</p>
+        <p>No se pudo cargar la plantilla. Comprueba tu conexión y vuelve a elegir el estilo.</p>
     </div>
 
     <!-- Contenedor del Lienzo (Canvas) -->
@@ -167,8 +167,8 @@
 
     <script>
         // Proporción estándar para afiche (ajustable)
-        const canvasWidth = 800;
-        const canvasHeight = 1200; 
+        const canvasWidth = 900;
+        const canvasHeight = 1600; 
         
         const canvas = new fabric.Canvas('photoCanvas', {
             width: canvasWidth,
@@ -177,30 +177,34 @@
             preserveObjectStacking: true
         });
 
-        // Función para cargar el estilo visual (Overlay)
+        // Los JPG se usan como fondo para mantener visible la foto añadida.
+        let templateRequest = 0;
+        let templateReady = false;
         function loadOverlayImage(styleName) {
-            const url = `imagenes/${styleName}.png`;
-            
-            fabric.Image.fromURL(url, function(img) {
-                const scaleX = canvasWidth / img.width;
-                const scaleY = canvasHeight / img.height;
-                const scale = Math.max(scaleX, scaleY);
-
-                canvas.setOverlayImage(img, canvas.renderAll.bind(canvas), {
-                    originX: 'center',
-                    originY: 'center',
-                    left: canvasWidth / 2,
-                    top: canvasHeight / 2,
-                    scaleX: scale,
-                    scaleY: scale
+            const request = ++templateRequest;
+            templateReady = false;
+            document.getElementById('downloadBtn').disabled = true;
+            const url = `imagenes/${styleName}.jpg`;
+            fabric.Image.fromURL(url, function(img, isError) {
+                if (request !== templateRequest) return;
+                const alert = document.getElementById('missingBgAlert');
+                if (isError || !img || !img.width || !img.height) {
+                    alert.classList.remove('hidden');
+                    return;
+                }
+                const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height);
+                canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas), {
+                    originX: 'center', originY: 'center',
+                    left: canvasWidth / 2, top: canvasHeight / 2,
+                    scaleX: scale, scaleY: scale
                 });
-                
-                document.getElementById('missingBgAlert').classList.add('hidden');
-                
-            }, { crossOrigin: 'anonymous' }, function(error) {
-                console.warn(`Plantilla ${styleName} no encontrada localmente.`);
-                document.getElementById('missingBgAlert').classList.remove('hidden');
-            });
+                templateReady = true;
+                const download = document.getElementById('downloadBtn');
+                download.disabled = canvas.getObjects().length === 0;
+                download.classList.toggle('opacity-50', download.disabled);
+                download.classList.toggle('cursor-not-allowed', download.disabled);
+                alert.classList.add('hidden');
+            }, { crossOrigin: 'anonymous' });
         }
 
         // Lógica de cambio de estilos
@@ -249,7 +253,7 @@
                         padding: 5
                     });
 
-                    // Al añadirlo, quedará automáticamente debajo del OverlayImage
+                    // La foto permanece sobre la plantilla de fondo.
                     canvas.add(img);
                     canvas.centerObject(img);
                     canvas.setActiveObject(img);
@@ -257,7 +261,7 @@
 
                     // Habilitar descarga
                     const downloadBtn = document.getElementById('downloadBtn');
-                    downloadBtn.disabled = false;
+                    downloadBtn.disabled = !templateReady;
                     downloadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 });
             };
