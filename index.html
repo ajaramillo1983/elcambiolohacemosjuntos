@@ -33,7 +33,7 @@
 </main><footer>Eliminación de fondo con <a href="https://github.com/imgly/background-removal-js" target="_blank" rel="noopener">IMG.LY</a>. El recorte se procesa localmente; la generación opcional envía la foto a Google. <a href="https://github.com/ajaramillo1983/elcambiolohacemosjuntos" target="_blank" rel="noopener">Código fuente</a>.</footer>
 <script type="module">
 const $=id=>document.getElementById(id);
-const W=1600,H=2048,TX=448,TW=1152;
+const W=1600,H=2048;
 const canvas=$('preview'),ctx=canvas.getContext('2d');
 const state={style:'Empresarias',template:null,person:null,source:null,busy:false,templateBusy:false,photoToken:0,styleToken:0,sourceUrl:null,cutoutUrl:null,generated:false,retryFile:null,retryGenerated:false};
 let removerPromise;
@@ -48,10 +48,9 @@ function draw(){
  ctx.clearRect(0,0,W,H);ctx.fillStyle='#eee';ctx.fillRect(0,0,W,H);
  if(!state.template)return;
  const im=state.template,sh=im.naturalHeight,sw=im.naturalWidth;
- // Amplía únicamente el borde de la escena para reservar espacio a la izquierda.
- ctx.drawImage(im,0,0,Math.min(sw*.15,180),sh,0,0,TX,H);
- ctx.drawImage(im,0,0,sw,sh,TX,0,TW,H);
- const shade=ctx.createLinearGradient(0,0,TX,0);shade.addColorStop(0,'rgba(0,0,0,.08)');shade.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=shade;ctx.fillRect(0,0,TX,H);
+ // Plantilla completa ampliada con IA: una sola imagen, escala uniforme.
+ const fit=Math.max(W/sw,H/sh);
+ ctx.drawImage(im,(W-sw*fit)/2,(H-sh*fit)/2,sw*fit,sh*fit);
  if(!state.person)return;
  const p=state.person,portrait=$('photoType').value==='portrait'&&!state.generated;
  const baseHeight=portrait?H*.47:H*.68;
@@ -62,7 +61,7 @@ function draw(){
  ctx.save();ctx.shadowColor='rgba(0,0,0,.18)';ctx.shadowBlur=12;ctx.shadowOffsetX=5;ctx.shadowOffsetY=5;ctx.drawImage(p,x,y,pw,ph);ctx.restore();
 }
 async function selectStyle(style){const token=++state.styleToken;state.style=style;state.templateBusy=true;sync();document.querySelectorAll('[data-style]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.style===style)));if(!state.busy)status('Cargando plantilla…','busy');
- try{const im=await loadImage('imagenes/'+style+'.jpg');if(token!==state.styleToken)return;state.template=im;state.templateBusy=false;draw();sync();if(!state.busy)status(state.person?'Montaje actualizado. Revisa la vista previa antes de descargar.':'Plantilla lista. Sube tu foto para crear el montaje.');}
+ try{const im=await loadImage('imagenes/ampliadas/'+style+'.png');if(token!==state.styleToken)return;state.template=im;state.templateBusy=false;draw();sync();if(!state.busy)status(state.person?'Montaje actualizado. Revisa la vista previa antes de descargar.':'Plantilla lista. Sube tu foto para crear el montaje.');}
  catch(e){if(token!==state.styleToken)return;state.template=null;state.templateBusy=false;draw();sync();if(!state.busy)status('No se pudo cargar la plantilla. Vuelve a elegir el estilo.','error');}}
 function trim(im){const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const q=c.getContext('2d',{willReadFrequently:true});q.drawImage(im,0,0);const {data}=q.getImageData(0,0,c.width,c.height);let x0=c.width,y0=c.height,x1=0,y1=0;for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++)if(data[(y*c.width+x)*4+3]>40){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);}if(x1<=x0||y1<=y0)throw new Error('No se detectó una persona. Prueba una foto más clara.');const out=document.createElement('canvas');out.width=x1-x0+1;out.height=y1-y0+1;out.getContext('2d').drawImage(c,x0,y0,out.width,out.height,0,0,out.width,out.height);return out;}
 async function normalize(file){const src=URL.createObjectURL(file);try{const im=await loadImage(src);const c=document.createElement('canvas');const k=Math.min(1,1800/Math.max(im.naturalWidth,im.naturalHeight));c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);return await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error('No se pudo leer la foto.')),'image/png'));}finally{URL.revokeObjectURL(src);}}
