@@ -1,17 +1,17 @@
 # El cambio IA — backend independiente
 
 Este servicio no importa Centinela, no requiere sus credenciales ni accede a su base de datos.
-Genera a la persona completa a partir de una foto y devuelve la imagen en memoria.
-La web quita el fondo y coloca a la persona junto a las candidatas, conservando la plantilla original.
+Genera una escena completa a partir de la foto y la plantilla del estilo elegido.
+La web muestra directamente el resultado de IA sin quitarle el fondo ni superponer un recorte.
 
 ## Despliegue en el nuevo servicio de Render
 
 - Repository: `ajaramillo1983/elcambiolohacemosjuntos`
 - Branch: `main`
-- Root Directory: `backend`
+- Root Directory: vacío (raíz del repositorio, incluye `imagenes/ampliadas`)
 - Runtime: Python
-- Build Command: `pip install -r requirements.txt`
-- Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1`
+- Build Command: `pip install -r backend/requirements.txt`
+- Start Command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers 1`
 - Health Check Path: `/api/health`
 
 Render Environment:
@@ -52,7 +52,7 @@ y debe revisarse. El parecido y la anatomía necesitan validarse con fotos reale
 {"image_base64":"BASE64_DE_LA_FOTO","mime_type":"image/jpeg","style":"Empresarias","consent":true}
 ```
 
-Respuesta: `image_base64`, `mime_type` y `generated: true`. Admite los cinco estilos de la web.
+Respuesta: `image_base64`, `mime_type`, `generated: true`, `composition: "scene"` y `style`. Admite los cinco estilos de la web.
 No acepta URLs ni prompts arbitrarios. Máximo 8 MB y 24 megapíxeles en la imagen de entrada.
 
 ## Verificación local
