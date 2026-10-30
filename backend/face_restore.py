@@ -53,9 +53,15 @@ def prepare_head(encoded):
     mask[core > 0] = cv2.GC_FGD
     mask[:2, :] = mask[-2:, :] = mask[:, :2] = mask[:, -2:] = cv2.GC_BGD
     try:
-        cv2.grabCut(crop, mask, None, np.zeros((1, 65), np.float64),
+        # Bound segmentation memory on the free server. Original RGB pixels stay full resolution.
+        ratio = min(1.0, 480 / max(ch, cw))
+        work = cv2.resize(crop, (max(1, round(cw * ratio)), max(1, round(ch * ratio)))) if ratio < 1 else crop
+        work_mask = cv2.resize(mask, (work.shape[1], work.shape[0]), interpolation=cv2.INTER_NEAREST) if ratio < 1 else mask
+        cv2.grabCut(work, work_mask, None, np.zeros((1, 65), np.float64),
                     np.zeros((1, 65), np.float64), 3, cv2.GC_INIT_WITH_MASK)
-        alpha = np.where((mask == cv2.GC_FGD) | (mask == cv2.GC_PR_FGD), 255, 0).astype(np.uint8)
+        alpha = np.where((work_mask == cv2.GC_FGD) | (work_mask == cv2.GC_PR_FGD), 255, 0).astype(np.uint8)
+        if ratio < 1:
+            alpha = cv2.resize(alpha, (cw, ch), interpolation=cv2.INTER_LINEAR)
     except cv2.error:
         raise HTTPException(422, 'No se pudo separar la cabeza del fondo. Prueba una foto con el cabello y el rostro bien visibles. No se ha solicitado ninguna generación.') from None
     # Feather only the silhouette boundary. Never blend the facial interior with AI pixels.
