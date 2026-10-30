@@ -25,10 +25,10 @@ from starlette.concurrency import run_in_threadpool
 
 try:
     from .face_restore import prepare_head, locate_head, compose_original_head
-    from .source_preserve import prepare_source, create_guide, finish_scene, verify_pipeline
+    from .source_preserve import prepare_source, create_guide, finish_scene, verify_pipeline, apply_office_pose
 except ImportError:  # tests/start command from backend directory
     from face_restore import prepare_head, locate_head, compose_original_head
-    from source_preserve import prepare_source, create_guide, finish_scene, verify_pipeline
+    from source_preserve import prepare_source, create_guide, finish_scene, verify_pipeline, apply_office_pose
 
 MAX_BYTES = 8 * 1024 * 1024
 MAX_BODY = 12 * 1024 * 1024
@@ -146,6 +146,25 @@ async def generate_person(settings: Settings, encoded: str, style: str, guide: s
         'detached heads, duplicated faces, discolored neck, extra limbs or sticker appearance. '
         'Return the complete portrait scene, not a separate body or cutout. Vertical 2:3, little unused left margin.'
     )
+    if style == 'Empresarias':
+        prompt += (
+            '\nOFFICE POSE EXCEPTION, ONLY FOR THE ADDED PERSON: the inward shoulder and arm '
+            '(on image RIGHT of the added person) have been released in the composition guide '
+            'so you may reconstruct ONLY that arm/shoulder to achieve the requested gesture. '
+            'Preserve their original face, hair, neck and central upper chest exactly. '
+            'Stand them close to and slightly behind the woman in the CREAM blazer. '
+            'Their inward upper arm reaches naturally behind her upper back; the relaxed hand '
+            'rests gently on her IMAGE-LEFT shoulder, mirroring the friendly gesture of the '
+            'woman in the BROWN blazer on the opposite side. The hand must connect through '
+            'a continuous forearm, elbow and upper arm to the added person\'s own shoulder. '
+            'Keep the added torso BEHIND the cream blazer woman, while the resting hand and '
+            'visible forearm are IN FRONT of her shoulder. Use smooth natural occlusion, '
+            'not a horizontal cut across her face, neck, lapel or shoulder. '
+            'Match the new arm skin to the added person\'s original neck and the sleeve to '
+            'their existing clothing. Exactly two arms and two hands for each person; '
+            'no duplicate original lowered arm, extra hand, fused fingers, hovering wrist '
+            'or disconnected limb. Keep the two existing women and their poses unchanged.'
+        )
     body = {
         'contents': [{'parts': [
             {'text': prompt},
@@ -255,6 +274,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         async with busy:
             encoded = await run_in_threadpool(normalize_image, payload.image_base64)
             source = await run_in_threadpool(prepare_source, encoded)
+            source = await run_in_threadpool(apply_office_pose, source, payload.style)
             template_path = Path(__file__).resolve().parent.parent / 'imagenes' / 'ampliadas' / f'{payload.style}.png'
             guide, placement = await run_in_threadpool(create_guide, template_path, source)
             # Se usa la IP de la conexión, nunca un X-Forwarded-For arbitrario.
