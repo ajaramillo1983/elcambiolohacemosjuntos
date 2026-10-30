@@ -17,7 +17,8 @@ from typing import Literal
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
@@ -176,6 +177,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if not re.fullmatch(r'[a-zA-Z0-9._-]{1,100}', settings.model):
         raise ValueError('Modelo de imágenes inválido')
     app = FastAPI(title='El cambio IA', docs_url=None, redoc_url=None, openapi_url=None)
+    site_root = Path(__file__).resolve().parent.parent
+    app.mount('/imagenes', StaticFiles(directory=site_root / 'imagenes'), name='plantillas')
+
+    @app.get('/')
+    async def frontend():
+        return FileResponse(site_root / 'index.html', media_type='text/html')
+
+    @app.get('/backend-config.js')
+    async def frontend_config():
+        return Response('window.EL_CAMBIO_API_BASE = window.location.origin;', media_type='application/javascript')
     app.add_middleware(CORSMiddleware, allow_origins=list(settings.origins), allow_methods=['GET', 'POST'],
                        allow_headers=['Content-Type', 'X-El-Cambio-Code'], allow_credentials=False)
     busy = asyncio.Lock()

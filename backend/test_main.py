@@ -215,3 +215,16 @@ def test_tight_crop_preserves_left_edge_of_colored_slogan():
     assert np.array_equal(cropped[20:110,12:532],rgb[20:110,40:560])
     blank=np.zeros_like(rgb)
     assert face_restore.tighten_left_margin(blank,[300,300,60,80]).shape==blank.shape
+
+
+def test_render_frontend_serves_automatic_ui_and_no_credentials(settings):
+    with TestClient(main.create_app(settings)) as c:
+        r=c.get('/')
+        assert r.status_code==200
+        assert 'original-head-v2-auto' in r.text
+        assert 'id="headX"' not in r.text
+        assert settings.api_key not in r.text
+        cfg=c.get('/backend-config.js')
+        assert cfg.status_code==200
+        assert 'window.location.origin' in cfg.text
+        assert settings.access_code not in cfg.text
