@@ -18,7 +18,7 @@
 <div><h2>2. Sube tu foto</h2><label class="upload">Elegir foto<input id="upload" type="file" accept="image/jpeg,image/png,image/webp"></label><p class="small">Sube una foto nítida de una sola persona, con el rostro visible. Después pulsa Crear montaje con IA para adaptar vestimenta, cuerpo, iluminación y perspectiva a la escena.</p>
 <div hidden><label for="photoType" class="range">Tipo de foto</label><select id="photoType"><option value="full">Cuerpo entero</option><option value="portrait">Selfie o medio cuerpo</option></select><p class="note" id="portraitNote" hidden>La selfie se coloca como retrato sin fondo. Cuando el servicio esté conectado, podrás generar un cuerpo completo y revisar el resultado.</p>
 </div><div id="generationPanel" hidden><label for="pilotCode" class="range">Código de acceso del piloto</label><input id="pilotCode" type="password" autocomplete="off" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:10px">
-<label class="small" style="display:block"><input id="consent" type="checkbox"> Autorizo enviar mi foto y la plantilla a Google para generar la escena. La herramienta recuperará la cabeza original; revisaré la unión, el cuerpo y el texto.</label>
+<label class="small" style="display:block"><input id="consent" type="checkbox"> Autorizo enviar mi foto y la plantilla a Google para generar la escena. La herramienta encajará automáticamente el rostro original sobre una silueta sintética estilizada; revisaré el resultado y el texto.</label>
 <button id="generateBody" class="secondary" disabled>Crear montaje con IA</button><p class="small">Introduce el código del piloto para habilitar el botón. Cada intento consume una generación. Se solicita conservar los rostros y el texto, pero debes revisar que la IA no los haya alterado.</p></div>
 <div class="compare" id="compare" hidden><figure><img id="before" alt="Foto original"><figcaption>Original</figcaption></figure><figure><img id="after" alt="Montaje de IA"><figcaption>Cabeza original recuperada</figcaption></figure></div>
 <button id="retry" class="secondary" hidden>Reintentar quitar fondo</button></div>
@@ -27,12 +27,7 @@
 <label class="range" for="horizontal">Posición horizontal</label><input id="horizontal" type="range" min="-140" max="160" value="0" disabled>
 <label class="range" for="vertical">Posición vertical</label><input id="vertical" type="range" min="-350" max="100" value="0" disabled>
 <button class="secondary" id="reset" disabled>Restablecer posición</button></div>
-<div id="headPanel" class="head-controls" hidden><h2>3. Revisa el rostro original</h2><p class="small">La cabeza de tu foto se coloca sobre el cuerpo generado, sin regenerar las facciones. Ajusta la unión si hace falta; estos controles no consumen generaciones.</p>
-<label class="range" for="headX">Mover a los lados</label><input id="headX" type="range" min="-100" max="100" value="0">
-<label class="range" for="headY">Subir o bajar</label><input id="headY" type="range" min="-100" max="100" value="0">
-<label class="range" for="headScale">Tamaño de la cabeza</label><input id="headScale" type="range" min="60" max="150" value="100">
-<label class="range" for="headRotation">Giro</label><input id="headRotation" type="range" min="-20" max="20" step="0.5" value="0">
-<button id="headReset" class="secondary">Restablecer ajuste</button>
+<div id="headPanel" class="head-controls" hidden><h2>3. Revisa tu montaje</h2><p class="small">El rostro original se encaja automáticamente sobre el cuerpo sintético. No necesitas mover la cabeza. Revisa el resultado antes de compartir.</p>
 <label class="small" style="display:block"><input id="faceReviewed" type="checkbox" style="width:auto"> Revisé el rostro original, la unión del cuello y el texto.</label></div>
 <div><h2>4. Comparte tu foto</h2><div class="socials"><button data-network="facebook" disabled>Facebook</button><button data-network="x" disabled>X</button><button data-network="instagram" disabled>Instagram</button><button data-network="tiktok" disabled>TikTok</button></div>
 <p class="small">En dispositivos compatibles se abre el menú para compartir la foto. En los demás, guarda la imagen y publica desde tu red. El acceso a tu cuenta se realiza únicamente en la red oficial.</p>
@@ -51,25 +46,15 @@ const apiBase=String(window.EL_CAMBIO_API_BASE||'').replace(/\/$/,'');
 const generationConfigured=/^https:\/\/[^/]+(?:\/[^?#]*)?$/.test(apiBase);
 $('generationPanel').hidden=!generationConfigured;
 function status(text,kind=''){ $('status').textContent=text;$('status').className='status '+kind; }
-function sync(){ $('generateBody').disabled=!generationConfigured||!state.source||state.busy||state.templateBusy||!state.template||!$('consent').checked||!$('pilotCode').value;document.querySelectorAll('[data-style]').forEach(b=>b.disabled=state.busy);$('upload').disabled=state.busy;$('photoType').disabled=state.busy; const ready=!!state.person&&!state.busy; for(const id of ['size','horizontal','vertical','reset'])$(id).disabled=!ready; const shareReady=!!state.scene&&!!state.head&&!state.busy&&!state.templateBusy&&$('faceReviewed').checked; $('download').disabled=!shareReady;document.querySelectorAll('[data-network]').forEach(b=>b.disabled=!shareReady);for(const id of ['headX','headY','headScale','headRotation','headReset','faceReviewed'])$(id).disabled=state.busy; document.querySelector('.badge').textContent=state.scene?'Montaje de IA · revisar':'Plantilla · sin generar'; }
+function sync(){ $('generateBody').disabled=!generationConfigured||!state.source||state.busy||state.templateBusy||!state.template||!$('consent').checked||!$('pilotCode').value;document.querySelectorAll('[data-style]').forEach(b=>b.disabled=state.busy);$('upload').disabled=state.busy;$('photoType').disabled=state.busy; const ready=!!state.person&&!state.busy; for(const id of ['size','horizontal','vertical','reset'])$(id).disabled=!ready; const shareReady=!!state.scene&&!!state.head&&!state.busy&&!state.templateBusy&&$('faceReviewed').checked; $('download').disabled=!shareReady;document.querySelectorAll('[data-network]').forEach(b=>b.disabled=!shareReady);$('faceReviewed').disabled=state.busy; document.querySelector('.badge').textContent=state.scene?'Montaje de IA · revisar':'Plantilla · sin generar'; }
 function loadImage(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>reject(new Error('No se pudo abrir la imagen.'));im.src=src;});}
 function reset(){for(const id of ['horizontal','vertical'])$(id).value=0;$('size').value=100;draw();}
 function draw(){
- ctx.clearRect(0,0,W,H);ctx.fillStyle='#eee';ctx.fillRect(0,0,W,H);
- if(state.scene){const im=state.scene;const k=Math.min(W/im.naturalWidth,H/im.naturalHeight);const ox=(W-im.naturalWidth*k)/2,oy=(H-im.naturalHeight*k)/2;ctx.drawImage(im,ox,oy,im.naturalWidth*k,im.naturalHeight*k);if(state.head&&state.placement){const p=state.placement;const z=Number($('headScale').value)/100;const x=p.x+p.width/2+Number($('headX').value)*im.naturalWidth/1000;const y=p.y+p.height/2+Number($('headY').value)*im.naturalHeight/1000;ctx.save();ctx.translate(ox+x*k,oy+y*k);ctx.rotate(Number($('headRotation').value)*Math.PI/180);ctx.drawImage(state.head,-p.width*z*k/2,-p.height*z*k/2,p.width*z*k,p.height*z*k);ctx.restore();}return;}
+ if(state.scene){canvas.width=state.scene.naturalWidth;canvas.height=state.scene.naturalHeight;ctx.drawImage(state.scene,0,0);return;}
+ canvas.width=W;canvas.height=H;ctx.fillStyle='#eee';ctx.fillRect(0,0,W,H);
  if(!state.template)return;
- const im=state.template,sh=im.naturalHeight,sw=im.naturalWidth;
- // Plantilla completa ampliada con IA: una sola imagen, escala uniforme.
- const fit=Math.max(W/sw,H/sh);
- ctx.drawImage(im,(W-sw*fit)/2,(H-sh*fit)/2,sw*fit,sh*fit);
- if(!state.person)return;
- const p=state.person,portrait=$('photoType').value==='portrait'&&!state.generated;
- const baseHeight=portrait?H*.47:H*.68;
- const scale=Math.min(baseHeight/p.height,650/p.width)*Number($('size').value)/100;
- const pw=p.width*scale,ph=p.height*scale;
- const x=310-pw/2+Number($('horizontal').value),y=H-48-ph+Number($('vertical').value);
- if(!portrait){ctx.save();ctx.fillStyle='rgba(0,0,0,.22)';ctx.filter='blur(16px)';ctx.beginPath();ctx.ellipse(x+pw/2,y+ph-2,pw*.31,18,0,0,Math.PI*2);ctx.fill();ctx.restore();}
- ctx.save();ctx.shadowColor='rgba(0,0,0,.18)';ctx.shadowBlur=12;ctx.shadowOffsetX=5;ctx.shadowOffsetY=5;ctx.drawImage(p,x,y,pw,ph);ctx.restore();
+ const im=state.template,sw=im.naturalWidth,sh=im.naturalHeight,k=Math.max(W/sw,H/sh);
+ ctx.drawImage(im,(W-sw*k)/2,(H-sh*k)/2,sw*k,sh*k);
 }
 async function selectStyle(style){const token=++state.styleToken;state.style=style;state.scene=null;state.head=null;state.placement=null;$('headPanel').hidden=true;$('faceReviewed').checked=false;state.person=null;$('compare').hidden=true;state.templateBusy=true;sync();document.querySelectorAll('[data-style]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.style===style)));if(!state.busy)status('Cargando plantilla…','busy');
  try{const im=await loadImage('imagenes/ampliadas/'+style+'.png');if(token!==state.styleToken)return;state.template=im;state.templateBusy=false;draw();sync();if(!state.busy)status(state.person?'Montaje actualizado. Revisa la vista previa antes de descargar.':state.source?'Estilo cambiado. Pulsa Crear montaje con IA para integrar tu foto en esta escena.':'Plantilla lista. Sube tu foto y después crea el montaje con IA.');}
@@ -90,11 +75,11 @@ $('generateBody').onclick=async()=>{
  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),175000);
  try{
  const health=await fetch(apiBase+'/api/health',{signal:controller.signal,cache:'no-store'});
- if(!health.ok||(await health.json()).face_restore!=='original-head-v1')throw new Error('El servidor se está actualizando. Espera un minuto y recarga la página. No se ha solicitado ninguna generación.');
+ if(!health.ok||(await health.json()).face_restore!=='original-head-v2-auto')throw new Error('El servidor se está actualizando. Espera un minuto y recarga la página. No se ha solicitado ninguna generación.');
  const blob=await normalize(state.source);const bytes=new Uint8Array(await blob.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
  const response=await fetch(apiBase+'/api/persona/generar',{method:'POST',headers:{'Content-Type':'application/json','X-El-Cambio-Code':$('pilotCode').value},body:JSON.stringify({image_base64:btoa(binary),mime_type:'image/png',style:state.style,consent:true}),signal:controller.signal});
  const result=await response.json();if(!response.ok)throw new Error(typeof result.detail==='string'?result.detail:'No se pudo generar la imagen.');
- if(result.face_restore!=='original-head-v1'||!result.original_head||!result.head_placement)throw new Error('El servidor se está actualizando. Espera un minuto y recarga la página antes de volver a generar.');
+ if(result.face_restore!=='original-head-v2-auto'||!result.original_head||!result.head_placement)throw new Error('El servidor se está actualizando. Espera un minuto y recarga la página antes de volver a generar.');
  if(!['image/png','image/jpeg','image/webp'].includes(result.mime_type)||!result.image_base64)throw new Error('El servicio no devolvió una imagen válida.');
  const raw=atob(result.image_base64);const output=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)output[i]=raw.charCodeAt(i);
  const url=URL.createObjectURL(new Blob([output],{type:result.mime_type}));
@@ -102,15 +87,13 @@ $('generateBody').onclick=async()=>{
  if(token!==state.photoToken){URL.revokeObjectURL(url);return;}
  if(state.cutoutUrl)URL.revokeObjectURL(state.cutoutUrl);state.cutoutUrl=url;
  const head=await loadImage('data:image/png;base64,'+result.original_head.image_base64);
- state.head=head;state.placement=result.head_placement;resetHead();$('headPanel').hidden=false;$('faceReviewed').checked=false;
+ state.head=head;state.placement=result.head_placement;$('headPanel').hidden=false;$('faceReviewed').checked=false;
  state.scene=scene;state.person=null;$('after').src='data:image/png;base64,'+result.original_head.image_base64;$('compare').hidden=false;draw();
- status(result.head_placement.manual_adjustment?'Escena lista. No se pudo ubicar automáticamente el rostro: ajusta la cabeza original con los controles antes de compartir. No hace falta volver a generar.':'Montaje híbrido listo: el rostro procede de tu foto original. Revisa y ajusta la unión con los controles; después marca la casilla de revisión para compartir.');
+ status('Montaje listo: rostro original encajado automáticamente y encuadre vertical más estrecho. Revisa la unión, el cuerpo y el texto, y marca la casilla para compartir.');
  }catch(e){if(token===state.photoToken)status(e.name==='AbortError'?'La generación tardó demasiado. Puede continuar en el servidor; evita repetir el intento inmediatamente.':e.message==='Failed to fetch'?'No se pudo conectar con el servicio de imágenes. Intenta más tarde.':e.message,'error');}
  finally{clearTimeout(timer);if(token===state.photoToken){state.busy=false;$('progress').hidden=true;sync();}}
 };
-function resetHead(){for(const id of ['headX','headY','headRotation'])$(id).value=0;$('headScale').value=100;draw();}
-for(const id of ['headX','headY','headScale','headRotation'])$(id).oninput=()=>{$('faceReviewed').checked=false;draw();sync();};
-$('headReset').onclick=()=>{resetHead();$('faceReviewed').checked=false;sync();};$('faceReviewed').onchange=sync;
+$('faceReviewed').onchange=sync;
 const shareText=$('shareMessage').value;
 async function copyMessage(){try{await navigator.clipboard.writeText(shareText);status('Mensaje copiado. Pégalo al publicar en tu red social.');}catch(e){$('shareMessage').focus();$('shareMessage').select();status('Selecciona y copia el mensaje del cuadro.');}}
 $('copyMessage').onclick=copyMessage;$('copyForShare').onclick=copyMessage;$('saveForShare').onclick=saveImage;$('closeShare').onclick=()=>$('shareDialog').close();

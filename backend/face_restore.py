@@ -2,6 +2,8 @@
 import base64
 import io
 import threading
+import math
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -10,7 +12,8 @@ from fastapi import HTTPException
 
 cv2.setNumThreads(1)
 _lock = threading.Lock()
-_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+_model = str(Path(__file__).resolve().parent / 'models' / 'face_detection_yunet_2023mar.onnx')
+_detector = cv2.FaceDetectorYN.create(_model, '', (320, 320), .85, .3, 5000)
 
 
 def decode(encoded):
@@ -19,19 +22,29 @@ def decode(encoded):
         return np.array(im.convert('RGB'))
 
 
-def faces(rgb):
-    # Detection only: no identity recognition, embeddings or face storage.
-    factor = min(1.0, 1200 / max(rgb.shape[:2]))
+def detections(rgb):
+    # Five landmarks, not identity recognition. Model is packaged, no runtime download.
+    factor = min(1.0, 960 / max(rgb.shape[:2]))
     small = cv2.resize(rgb, None, fx=factor, fy=factor) if factor < 1 else rgb
-    gray = cv2.equalizeHist(cv2.cvtColor(small, cv2.COLOR_RGB2GRAY))
+    bgr = cv2.cvtColor(small, cv2.COLOR_RGB2BGR)
     with _lock:
-        found = _cascade.detectMultiScale(gray, scaleFactor=1.08, minNeighbors=5, minSize=(24, 24))
-    return [tuple(int(round(v / factor)) for v in box) for box in found]
+        _detector.setInputSize((bgr.shape[1], bgr.shape[0]))
+        _, found = _detector.detect(bgr)
+    if found is None:
+        return []
+    return [{'box': [float(v / factor) for v in row[:4]],
+             'eyes': sorted([[float(row[i] / factor), float(row[i+1] / factor)] for i in (4, 6)]),
+             'score': float(row[14])} for row in found]
+
+
+def faces(rgb):
+    return [tuple(round(v) for v in d['box']) for d in detections(rgb)]
 
 
 def prepare_head(encoded):
     rgb = decode(encoded)
-    found = faces(rgb)
+    detected = detections(rgb)
+    found = [tuple(round(v) for v in d['box']) for d in detected]
     if len(found) != 1:
         raise HTTPException(422, 'Para conservar tu rostro, usa una foto nítida de una sola persona, mirando de frente o casi de frente. No se ha solicitado ninguna generación.')
     x, y, w, h = found[0]
@@ -88,20 +101,55 @@ def prepare_head(encoded):
     Image.fromarray(rgba).save(out, format='PNG')
     return {'image_base64': base64.b64encode(out.getvalue()).decode(),
             'mime_type': 'image/png', 'width': cw, 'height': ch,
-            'face_box': [fx, fy, w, h]}
+            'face_box': [fx, fy, w, h],
+            'eyes': [[ex-left, ey-top] for ex,ey in detected[0]['eyes']]}
 
 
 def locate_head(scene_encoded, head):
     scene = decode(scene_encoded)
     height, width = scene.shape[:2]
-    found = sorted((b for b in faces(scene) if (b[0] + b[2] / 2) < width * .5), key=lambda b: b[0])
-    # If detection is uncertain, return a manual placement; never request another paid image.
-    manual = not found
-    target = found[0] if found else (int(width * .15), int(height * .22), int(width * .12), int(width * .12))
-    tx, ty, tw, th = target
-    sx, sy, sw, sh = head['face_box']
-    scale = tw / sw  # uniform scale; no facial reshaping
-    return {'x': tx + tw / 2 - (sx + sw / 2) * scale,
-            'y': ty + th / 2 - (sy + sh / 2) * scale,
-            'width': head['width'] * scale, 'height': head['height'] * scale,
-            'scene_width': width, 'scene_height': height, 'manual_adjustment': manual}
+    # Only the foreground group in the upper half. This excludes background guests
+    # and the low false positives that previously created a floating head.
+    people = [d for d in detections(scene)
+              if .04 * width <= d['box'][2] <= .25 * width
+              and .01 * height <= d['box'][1] <= .55 * height]
+    people = sorted(people, key=lambda d: d['box'][2] * d['box'][3], reverse=True)[:3]
+    people.sort(key=lambda d: d['box'][0] + d['box'][2] / 2)
+    if len(people) != 3:
+        raise HTTPException(422, 'No se pudo encajar automáticamente el rostro con seguridad. Usa una foto frontal y nítida. No se ha solicitado otra generación automática.')
+    target = people[0]
+    centers = [d['box'][1] + d['box'][3]/2 for d in people]
+    if max(centers)-min(centers) > .18*height:
+        raise HTTPException(422, 'La escena no permite un encaje seguro del rostro. No se ha solicitado otra generación automática.')
+    source_eyes = np.array(head['eyes'], dtype=np.float64)
+    target_eyes = np.array(target['eyes'], dtype=np.float64)
+    sv, tv = source_eyes[1]-source_eyes[0], target_eyes[1]-target_eyes[0]
+    source_distance, target_distance = float(np.linalg.norm(sv)), float(np.linalg.norm(tv))
+    if source_distance < 8 or target_distance < 8:
+        raise HTTPException(422, 'No hay suficiente detalle en los ojos para conservar el rostro con precisión.')
+    scale = target_distance/source_distance
+    theta = math.atan2(tv[1],tv[0])-math.atan2(sv[1],sv[0])
+    if abs(theta) > math.radians(25):
+        raise HTTPException(422, 'La orientación de la cabeza generada difiere demasiado de la foto original.')
+    rotation = np.array([[math.cos(theta),-math.sin(theta)], [math.sin(theta),math.cos(theta)]]) * scale
+    shift = target_eyes.mean(axis=0) - rotation @ source_eyes.mean(axis=0)
+    matrix = np.column_stack((rotation,shift))
+    return {'matrix': matrix.tolist(), 'scene_width': width, 'scene_height': height,
+            'automatic': True, 'target_box': target['box']}
+
+
+def compose_original_head(scene_encoded, head, placement):
+    # Final composition occurs here, so preview, saved file and share use the same image.
+    scene = Image.fromarray(decode(scene_encoded)).convert('RGBA')
+    patch = np.array(Image.open(io.BytesIO(base64.b64decode(head['image_base64']))).convert('RGBA'))
+    matrix = np.array(placement['matrix'], dtype=np.float64)
+    # Premultiplied alpha avoids colored halos from transparent source pixels.
+    alpha = patch[:,:,3:4].astype(np.float32)/255
+    premultiplied = np.concatenate((patch[:,:,:3].astype(np.float32)*alpha, alpha),axis=2)
+    warped = cv2.warpAffine(premultiplied,matrix,(scene.width,scene.height),flags=cv2.INTER_LINEAR,
+                            borderMode=cv2.BORDER_CONSTANT,borderValue=(0,0,0,0))
+    a = warped[:,:,3:4]
+    rgb = warped[:,:,:3] + np.array(scene)[:,:,:3].astype(np.float32)*(1-a)
+    out=io.BytesIO()
+    Image.fromarray(np.clip(rgb,0,255).astype(np.uint8)).save(out,format='PNG')
+    return base64.b64encode(out.getvalue()).decode('ascii')

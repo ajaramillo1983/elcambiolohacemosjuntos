@@ -60,7 +60,8 @@ def test_success_and_per_person_limit(settings, monkeypatch):
         return {'image_base64': picture(), 'mime_type': 'image/png', 'generated': True}
     monkeypatch.setattr(main, 'generate_person', fake)
     monkeypatch.setattr(main, 'prepare_head', lambda encoded: {'image_base64': picture()})
-    monkeypatch.setattr(main, 'locate_head', lambda encoded, head: {'x': 0, 'y': 0})
+    monkeypatch.setattr(main, 'locate_head', lambda encoded, head: {'automatic': True})
+    monkeypatch.setattr(main, 'compose_original_head', lambda encoded, head, placement: encoded)
     with TestClient(main.create_app(settings)) as c:
         for _ in range(3):
             r = c.post('/api/persona/generar', json=payload(), headers={'X-El-Cambio-Code': settings.access_code})
@@ -122,7 +123,7 @@ def test_google_image_response(settings, monkeypatch):
         async def post(self, url, **kwargs):
             body = kwargs['json']
             assert body['generationConfig']['responseModalities'] == ['TEXT', 'IMAGE']
-            assert body['generationConfig']['imageConfig']['aspectRatio'] == '4:5'
+            assert body['generationConfig']['imageConfig']['aspectRatio'] == '2:3'
             images = [p['inlineData'] for p in body['contents'][0]['parts'] if 'inlineData' in p]
             assert len(images) == 2
             assert images[0]['mimeType'] == 'image/png'
@@ -148,7 +149,7 @@ def test_original_head_pixels_are_not_generated(monkeypatch):
     rgb[50:80, 45:75] = (203, 151, 109)
     out = io.BytesIO()
     Image.fromarray(rgb).save(out, format='PNG')
-    monkeypatch.setattr(face_restore, 'faces', lambda im: [(35, 35, 50, 60)])
+    monkeypatch.setattr(face_restore, 'detections', lambda im: [{'box':[35,35,50,60],'eyes':[[47,55],[73,55]],'score':.99}])
     head = face_restore.prepare_head(base64.b64encode(out.getvalue()).decode())
     patch = np.array(Image.open(io.BytesIO(base64.b64decode(head['image_base64']))))
     fx, fy, w, h = head['face_box']
@@ -157,17 +158,37 @@ def test_original_head_pixels_are_not_generated(monkeypatch):
     assert patch[-1,:,3].max() == 0
 
 
-def test_head_placement_uses_uniform_scale_and_left_subject(monkeypatch):
+def test_head_alignment_excludes_floating_face_and_matches_eyes(monkeypatch):
     import face_restore
-    monkeypatch.setattr(face_restore, 'faces', lambda im: [(20,10,8,8),(60,10,8,8)])
-    h = {'face_box':[4,6,16,16], 'width':28, 'height':36}
-    p = face_restore.locate_head(picture(),h)
-    # source picture is 40 wide: detection at x20 is outside left half; manual fallback.
-    assert p['manual_adjustment'] is True
-    monkeypatch.setattr(face_restore, 'faces', lambda im: [(5,10,8,8),(25,10,8,8)])
-    p = face_restore.locate_head(picture(),h)
-    assert p['manual_adjustment'] is False
-    assert p['width']/h['width'] == p['height']/h['height'] == .5
+    import numpy as np
+    out=io.BytesIO(); Image.new('RGB',(160,240),'white').save(out,format='PNG')
+    scene=base64.b64encode(out.getvalue()).decode()
+    def detection(x,y):
+        return {'box':[x,y,24,32],'eyes':[[x+6,y+12],[x+18,y+12]],'score':.99}
+    detected=[detection(40,35),detection(75,35),detection(110,35),detection(5,190)]
+    monkeypatch.setattr(face_restore,'detections',lambda im:detected)
+    head={'eyes':[[10,20],[34,20]]}
+    p=face_restore.locate_head(scene,head)
+    assert p['automatic'] is True
+    assert p['target_box'][1]==35
+    matrix=np.array(p['matrix'])
+    mapped=(matrix[:,:2]@np.array(head['eyes']).T).T+matrix[:,2]
+    assert np.allclose(mapped,detected[0]['eyes'])
+    assert np.allclose(matrix[:,:2].T@matrix[:,:2],np.eye(2)*.25)
+    monkeypatch.setattr(face_restore,'detections',lambda im:detected[:2])
+    with pytest.raises(HTTPException) as e:
+        face_restore.locate_head(scene,head)
+    assert e.value.status_code==422  # no guessed default or floating head
+
+
+def test_server_composition_keeps_source_pixels():
+    import face_restore
+    out=io.BytesIO();Image.new('RGBA',(10,10),(10,20,30,255)).save(out,format='PNG')
+    head={'image_base64':base64.b64encode(out.getvalue()).decode()}
+    result=face_restore.compose_original_head(picture(),head,{'matrix':[[1,0,4],[0,1,6]]})
+    im=Image.open(io.BytesIO(base64.b64decode(result)))
+    assert im.getpixel((8,10))==(10,20,30)
+    assert im.getpixel((0,0))==(189,145,118)
 
 
 def test_no_source_face_rejected_before_paid_generation(settings,monkeypatch):
