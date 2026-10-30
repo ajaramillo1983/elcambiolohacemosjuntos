@@ -56,9 +56,11 @@ def test_success_and_per_person_limit(settings, monkeypatch):
     async def fake(settings, encoded, style):
         calls.append(style)
         with Image.open(io.BytesIO(base64.b64decode(encoded))) as im:
-            assert im.format == 'JPEG'
+            assert im.format == 'PNG'
         return {'image_base64': picture(), 'mime_type': 'image/png', 'generated': True}
     monkeypatch.setattr(main, 'generate_person', fake)
+    monkeypatch.setattr(main, 'prepare_head', lambda encoded: {'image_base64': picture()})
+    monkeypatch.setattr(main, 'locate_head', lambda encoded, head: {'x': 0, 'y': 0})
     with TestClient(main.create_app(settings)) as c:
         for _ in range(3):
             r = c.post('/api/persona/generar', json=payload(), headers={'X-El-Cambio-Code': settings.access_code})
@@ -134,3 +136,49 @@ def test_google_image_response(settings, monkeypatch):
 
     assert result['composition'] == 'scene'
     assert result['style'] == 'Graduadas'
+
+
+def test_original_head_pixels_are_not_generated(monkeypatch):
+    import numpy as np
+    import face_restore
+    # Color pattern makes any replacement/blending of the facial interior detectable.
+    rgb = np.zeros((160, 120, 3), dtype=np.uint8)
+    rgb[:] = (180, 210, 230)
+    rgb[35:95, 35:85] = (110, 70, 50)
+    rgb[50:80, 45:75] = (203, 151, 109)
+    out = io.BytesIO()
+    Image.fromarray(rgb).save(out, format='PNG')
+    monkeypatch.setattr(face_restore, 'faces', lambda im: [(35, 35, 50, 60)])
+    head = face_restore.prepare_head(base64.b64encode(out.getvalue()).decode())
+    patch = np.array(Image.open(io.BytesIO(base64.b64decode(head['image_base64']))))
+    fx, fy, w, h = head['face_box']
+    assert tuple(patch[fy+30, fx+25, :3]) == tuple(rgb[65,60])
+    assert patch[fy+30, fx+25, 3] == 255
+    assert patch[-1,:,3].max() == 0
+
+
+def test_head_placement_uses_uniform_scale_and_left_subject(monkeypatch):
+    import face_restore
+    monkeypatch.setattr(face_restore, 'faces', lambda im: [(20,10,8,8),(60,10,8,8)])
+    h = {'face_box':[4,6,16,16], 'width':28, 'height':36}
+    p = face_restore.locate_head(picture(),h)
+    # source picture is 40 wide: detection at x20 is outside left half; manual fallback.
+    assert p['manual_adjustment'] is True
+    monkeypatch.setattr(face_restore, 'faces', lambda im: [(5,10,8,8),(25,10,8,8)])
+    p = face_restore.locate_head(picture(),h)
+    assert p['manual_adjustment'] is False
+    assert p['width']/h['width'] == p['height']/h['height'] == .5
+
+
+def test_no_source_face_rejected_before_paid_generation(settings,monkeypatch):
+    from fastapi import HTTPException
+    def reject(encoded):
+        raise HTTPException(422, 'No face')
+    monkeypatch.setattr(main,'prepare_head',reject)
+    async def should_not_call(*args):
+        raise AssertionError('Provider must not be called')
+    monkeypatch.setattr(main,'generate_person',should_not_call)
+    with TestClient(main.create_app(settings)) as c:
+        r=c.post('/api/persona/generar',json=payload(),headers={'X-El-Cambio-Code':settings.access_code})
+        assert r.status_code==422
+    assert not __import__('pathlib').Path(settings.quota_db).exists()

@@ -17,7 +17,7 @@ La web muestra directamente el resultado de IA sin quitarle el fondo ni superpon
 Render Environment:
 
 - `EL_CAMBIO_GEMINI_API_KEY`: clave del proyecto Google **elcambioia**, no la de Centinela.
-- `EL_CAMBIO_ACCESS_CODE`: código privado del piloto de al menos 12 caracteres. No publicar en código.
+- `EL_CAMBIO_ACCESS_CODE`: código privado configurado para el piloto. No publicar en código.
 - `EL_CAMBIO_ENABLED`: `true` al iniciar las pruebas; `false` desactiva los gastos de generación.
 - `EL_CAMBIO_IMAGE_MODEL`: `gemini-3.1-flash-image`, modificable si el proyecto no tiene acceso.
 - `CORS_ORIGINS`: `https://ajaramillo1983.github.io`.
@@ -68,3 +68,9 @@ Documentación del proveedor: https://ai.google.dev/gemini-api/docs/generate-con
 
 ## Montaje integrado (octubre 2026)
 La generación recibe dos referencias: la plantilla local elegida y la foto normalizada del usuario. Devuelve una escena completa (composition: scene); el navegador muestra esa imagen sin recortarla ni pegarla sobre otro fondo. Cambiar estilo o foto invalida el resultado y exige una nueva generación explícita. La descarga permanece deshabilitada hasta tener un montaje de IA. El prompt solicita preservar identidad, candidatas y texto, pero no garantiza coincidencia facial exacta ni preservación píxel a píxel. Revisar cada resultado; no prometer rostro intacto. No hay reintentos de pago automáticos.
+
+
+## Recuperación de cabeza original y compartir
+La foto se normaliza como PNG sin metadatos. Antes de reservar una generación se detecta un único rostro frontal y se obtiene una máscara de cabeza mediante OpenCV/GrabCut. El interior facial conserva los píxeles de esa foto, sin síntesis, retoque facial ni mezcla con la cara generada. La máscara puede requerir otra foto si el fondo/cabello no se separan bien. La escala y el giro implican remuestreo; no se promete identidad píxel a píxel a la resolución de salida.
+Tras generar la escena se detecta la cara de la izquierda y se devuelven original_head y head_placement para su composición en el navegador. Si no se encuentra, hay colocación manual sin nueva llamada a Google. No se guardan fotos, cabezas ni descriptores biométricos. La detección no identifica personas.
+El usuario revisa la cabeza/cuello con controles gratuitos y marca la casilla de revisión antes de guardar o compartir. Web Share envía archivo y texto al menú del dispositivo cuando está disponible. X permite preparar texto y enlace mediante intent; la imagen se adjunta manualmente. Facebook, Instagram y TikTok tienen alternativas para guardar, copiar y abrir su sitio oficial. No se recogen contraseñas ni se publica automáticamente; las redes pueden ignorar el texto recibido.

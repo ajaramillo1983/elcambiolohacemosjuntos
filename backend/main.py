@@ -22,6 +22,11 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
+try:
+    from .face_restore import prepare_head, locate_head
+except ImportError:  # tests/start command from backend directory
+    from face_restore import prepare_head, locate_head
+
 MAX_BYTES = 8 * 1024 * 1024
 MAX_BODY = 12 * 1024 * 1024
 Image.MAX_IMAGE_PIXELS = 24_000_000
@@ -82,7 +87,7 @@ def normalize_image(encoded: str) -> str:
                 clean = Image.new('RGB', image.size, 'white')
                 clean.paste(image)
                 out = io.BytesIO()
-                clean.save(out, format='JPEG', quality=92)
+                clean.save(out, format='PNG')
         return base64.b64encode(out.getvalue()).decode('ascii')
     except HTTPException:
         raise
@@ -114,13 +119,14 @@ async def generate_person(settings: Settings, encoded: str, style: str) -> dict:
         raise HTTPException(503, 'La plantilla de este estilo no está disponible.')
     template = base64.b64encode(template_path.read_bytes()).decode('ascii')
     prompt = "Crea una única fotografía grupal fotorrealista utilizando las dos imágenes de referencia.\n\nREFERENCIAS\nLa imagen 1 contiene la escena, las dos mujeres y el eslogan. La imagen 2 contiene a la persona que debes incorporar.\n\nPRIORIDAD MÁXIMA: CONSERVAR EL ROSTRO DE LA IMAGEN 2\nLa persona incorporada debe conservar su identidad facial. Trata su rostro como una región protegida: modifica la vestimenta, completa el cuerpo y adapta la composición alrededor de él, sin rediseñarlo.\nConserva la forma y las proporciones del rostro; la distancia, forma y tamaño de los ojos; las cejas; la nariz; los labios; la sonrisa y los dientes visibles; los pómulos; la mandíbula; el mentón; la frente; las orejas visibles; la línea del cabello y las asimetrías naturales.\nMantén la edad aparente, la expresión, la dirección de la mirada, la textura de la piel y los rasgos particulares visibles en la fotografía original. No rejuvenezcas, embellezcas, estilices, afines, suavices ni simetrices el rostro. No cambies la sonrisa ni inventes dientes. No combines sus facciones con las de las otras mujeres ni sustituyas su cara por una versión aproximada.\nConserva la orientación original de la cabeza. Adapta la postura del cuerpo a esa orientación, en lugar de girar o reconstruir el rostro. Si necesitas ajustar el tamaño, escala proporcionalmente la cabeza completa: nunca modifiques sus proporciones internas.\nEn el rostro, limita los ajustes a exposición, balance de blancos y color para armonizarlo con la escena, sin alterar sus rasgos ni borrar su textura. Si existe un conflicto entre una integración estética y la fidelidad facial, prioriza la fidelidad facial.\n\nCUERPO Y VESTIMENTA\nViste a la persona de acuerdo con el estilo seleccionado: ropa empresarial para Empresarias; vestimenta deportiva para Deportistas; toga y birrete para Graduadas; traje o vestido formal para De Gala; ropa apropiada para la playa para Viajeras.\nConserva la complexión visible. Si faltan partes del cuerpo, complétalas con anatomía y proporciones naturales, coherentes con lo que muestra la fotografía. No adelgaces ni exageres el cuerpo. Genera manos y extremidades anatómicamente correctas.\n\nPOSICIÓN Y CERCANÍA\nColoca a la persona a la izquierda, muy próxima al grupo y ligeramente detrás del codo de la mujer más cercana. Ese codo debe quedar naturalmente por delante de parte de su brazo o torso, sin fusionar las extremidades ni cubrir ningún rostro.\nSu cabeza no debe sobresalir por encima de la mujer de pie más cercana: sitúala ligeramente más abajo, manteniendo un tamaño de cabeza y una escala corporal coherentes. Si la mujer más cercana está sentada, utiliza como referencia de altura a la otra mujer de pie.\nLas tres deben parecer estar posando juntas para la misma fotografía. Conserva la cercanía del grupo, con una postura relajada y una ligera orientación corporal hacia el centro.\n\nINTEGRACIÓN Y CONSERVACIÓN DE LA ESCENA\nAdapta la iluminación del cuerpo y la ropa, las sombras de contacto, la perspectiva, el color, la nitidez y el apoyo de los pies al entorno. Evita bordes de recorte, halos, extremidades deformadas y apariencia de figura pegada.\nConserva las posiciones, los rostros, la ropa y las poses de las dos mujeres de la imagen 1. Conserva el eslogan completo, sus letras y el logotipo.\nDevuelve una sola imagen con la escena grupal completa. La persona añadida debe ser reconocible por el mismo rostro de la imagen 2, sin reinterpretación estética." + '\nEstilo seleccionado: ' + style.replace('_', ' ')
+    prompt += '\nMONTAJE HÍBRIDO: adapta cuerpo y postura a la orientación exacta de la cabeza original. Mantén su peinado, tamaño de cabeza y orientación para que podamos recuperar la cabeza original sin girar ni deformar las facciones. No coloques manos ni objetos delante de esa cabeza.'
     body = {
         'contents': [{'parts': [
             {'text': prompt},
             {'text': 'IMAGE 1: scene to preserve and edit'},
             {'inlineData': {'mimeType': 'image/png', 'data': template}},
             {'text': 'IMAGE 2: identity reference of the additional person'},
-            {'inlineData': {'mimeType': 'image/jpeg', 'data': encoded}},
+            {'inlineData': {'mimeType': 'image/png', 'data': encoded}},
         ]}],
         'generationConfig': {'responseModalities': ['TEXT', 'IMAGE'], 'imageConfig': {'aspectRatio': '4:5'}},
     }
@@ -193,7 +199,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def health():
         return {'status': 'ok', 'service': 'elcambio-ia-backend',
                 'generation_ready': bool(settings.enabled and settings.api_key and bool(settings.access_code)),
-                'access_code_required': True, 'composition': 'scene'}
+                'access_code_required': True, 'composition': 'scene', 'face_restore': 'original-head-v1'}
 
     @app.post('/api/persona/generar')
     async def generate(payload: GenerateInput, request: Request):
@@ -206,9 +212,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(429, 'Hay otra imagen en proceso. Espera un momento.')
         async with busy:
             encoded = await run_in_threadpool(normalize_image, payload.image_base64)
+            head = await run_in_threadpool(prepare_head, encoded)
             # Se usa la IP de la conexión, nunca un X-Forwarded-For arbitrario.
             await run_in_threadpool(reserve_attempt, settings, request.client.host if request.client else 'unknown')
             result = await generate_person(settings, encoded, payload.style)
+            placement = await run_in_threadpool(locate_head, result['image_base64'], head)
+            result['original_head'] = head
+            result['head_placement'] = placement
+            result['face_restore'] = 'original-head-v1'
             return result
     return app
 
