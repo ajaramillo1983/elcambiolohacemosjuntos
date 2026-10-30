@@ -67,6 +67,15 @@ def prepare_head(encoded):
     # Feather only the silhouette boundary. Never blend the facial interior with AI pixels.
     alpha = cv2.GaussianBlur(alpha, (3, 3), .7)
     alpha[core > 0] = 255
+    # Discard disconnected/background-colored pieces caught beside cheeks or neck.
+    envelope = np.zeros((ch, cw), np.uint8)
+    cv2.ellipse(envelope, (fx + w // 2, fy + int(h * .43)),
+                (max(1, int(w * .55)), max(1, int(h * .63))), 0, 0, 360, 255, -1)
+    cv2.ellipse(envelope, (fx + w // 2, fy - int(h * .08)),
+                (max(1, int(w * .72)), max(1, int(h * .55))), 0, 0, 360, 255, -1)
+    envelope = cv2.GaussianBlur(envelope, (3, 3), .7)
+    alpha = np.minimum(alpha, envelope)
+    alpha[core > 0] = 255
     # Exclude the source shirt/collar; transition just beneath the detected chin.
     fade_start = fy + h
     fade_end = min(ch, fade_start + max(2, int(h * .07)))
