@@ -53,15 +53,16 @@ def test_validates_image_consent_and_style(settings):
 
 def test_success_and_per_person_limit(settings, monkeypatch):
     calls = []
-    async def fake(settings, encoded, style):
+    async def fake(settings, encoded, style, **kwargs):
         calls.append(style)
         with Image.open(io.BytesIO(base64.b64decode(encoded))) as im:
             assert im.format == 'PNG'
         return {'image_base64': picture(), 'mime_type': 'image/png', 'generated': True}
     monkeypatch.setattr(main, 'generate_person', fake)
-    monkeypatch.setattr(main, 'prepare_head', lambda encoded: {'image_base64': picture()})
+    monkeypatch.setattr(main, 'prepare_source', lambda encoded: {'image_base64': picture()})
+    monkeypatch.setattr(main, 'create_guide', lambda path, source: ('TEST_GUIDE', {'automatic':True}))
     monkeypatch.setattr(main, 'locate_head', lambda encoded, head: {'automatic': True})
-    monkeypatch.setattr(main, 'compose_original_head', lambda encoded, head, placement: encoded)
+    monkeypatch.setattr(main, 'finish_scene', lambda encoded, source, placement: encoded)
     with TestClient(main.create_app(settings)) as c:
         for _ in range(3):
             r = c.post('/api/persona/generar', json=payload(), headers={'X-El-Cambio-Code': settings.access_code})
@@ -195,7 +196,7 @@ def test_no_source_face_rejected_before_paid_generation(settings,monkeypatch):
     from fastapi import HTTPException
     def reject(encoded):
         raise HTTPException(422, 'No face')
-    monkeypatch.setattr(main,'prepare_head',reject)
+    monkeypatch.setattr(main,'prepare_source',reject)
     async def should_not_call(*args):
         raise AssertionError('Provider must not be called')
     monkeypatch.setattr(main,'generate_person',should_not_call)
@@ -221,10 +222,28 @@ def test_render_frontend_serves_automatic_ui_and_no_credentials(settings):
     with TestClient(main.create_app(settings)) as c:
         r=c.get('/')
         assert r.status_code==200
-        assert 'original-head-v2-auto' in r.text
+        assert 'source-region-v3' in r.text
         assert 'id="headX"' not in r.text
         assert settings.api_key not in r.text
         cfg=c.get('/backend-config.js')
         assert cfg.status_code==200
         assert 'window.location.origin' in cfg.text
         assert settings.access_code not in cfg.text
+
+
+def test_source_region_startup_gate_and_original_neck_pixels():
+    import source_preserve
+    source_preserve.verify_pipeline()
+
+def test_normalization_keeps_png_alpha():
+    out=io.BytesIO()
+    im=Image.new('RGBA',(50,100),(0,0,0,0))
+    for y in range(10,90):
+        for x in range(10,40):
+            im.putpixel((x,y),(112,78,51,255))
+    im.save(out,format='PNG')
+    normalized=main.normalize_image(base64.b64encode(out.getvalue()).decode())
+    result=Image.open(io.BytesIO(base64.b64decode(normalized)))
+    assert result.mode=='RGBA'
+    assert result.getpixel((0,0))[3]==0
+    assert result.getpixel((20,60))==(112,78,51,255)

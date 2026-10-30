@@ -25,8 +25,10 @@ from starlette.concurrency import run_in_threadpool
 
 try:
     from .face_restore import prepare_head, locate_head, compose_original_head
+    from .source_preserve import prepare_source, create_guide, finish_scene, verify_pipeline
 except ImportError:  # tests/start command from backend directory
     from face_restore import prepare_head, locate_head, compose_original_head
+    from source_preserve import prepare_source, create_guide, finish_scene, verify_pipeline
 
 MAX_BYTES = 8 * 1024 * 1024
 MAX_BODY = 12 * 1024 * 1024
@@ -83,9 +85,9 @@ def normalize_image(encoded: str) -> str:
                 if source.format not in {'PNG', 'JPEG', 'WEBP'}:
                     raise ValueError('unsupported image')
                 source.load()
-                image = ImageOps.exif_transpose(source).convert('RGB')
+                image = ImageOps.exif_transpose(source).convert('RGBA')
                 image.thumbnail((1600, 1600))
-                clean = Image.new('RGB', image.size, 'white')
+                clean = Image.new('RGBA', image.size, (0, 0, 0, 0))
                 clean.paste(image)
                 out = io.BytesIO()
                 clean.save(out, format='PNG')
@@ -113,15 +115,37 @@ def reserve_attempt(settings: Settings, client_ip: str):
         db.execute('INSERT INTO attempts VALUES (?, ?)', (day, subject))
 
 
-async def generate_person(settings: Settings, encoded: str, style: str) -> dict:
+async def generate_person(settings: Settings, encoded: str, style: str, guide: str | None = None) -> dict:
     # Plantilla confiable del repositorio; ninguna URL ni ruta proviene del cliente.
     template_path = Path(__file__).resolve().parent.parent / 'imagenes' / 'ampliadas' / f'{style}.png'
     if style not in STYLES or not template_path.is_file():
         raise HTTPException(503, 'La plantilla de este estilo no está disponible.')
     template = base64.b64encode(template_path.read_bytes()).decode('ascii')
-    prompt = "Crea una única fotografía grupal fotorrealista utilizando las dos imágenes de referencia.\n\nREFERENCIAS\nLa imagen 1 contiene la escena, las dos mujeres y el eslogan. La imagen 2 contiene a la persona que debes incorporar.\n\nPRIORIDAD MÁXIMA: CONSERVAR EL ROSTRO DE LA IMAGEN 2\nLa persona incorporada debe conservar su identidad facial. Trata su rostro como una región protegida: modifica la vestimenta, completa el cuerpo y adapta la composición alrededor de él, sin rediseñarlo.\nConserva la forma y las proporciones del rostro; la distancia, forma y tamaño de los ojos; las cejas; la nariz; los labios; la sonrisa y los dientes visibles; los pómulos; la mandíbula; el mentón; la frente; las orejas visibles; la línea del cabello y las asimetrías naturales.\nMantén la edad aparente, la expresión, la dirección de la mirada, la textura de la piel y los rasgos particulares visibles en la fotografía original. No rejuvenezcas, embellezcas, estilices, afines, suavices ni simetrices el rostro. No cambies la sonrisa ni inventes dientes. No combines sus facciones con las de las otras mujeres ni sustituyas su cara por una versión aproximada.\nConserva la orientación original de la cabeza. Adapta la postura del cuerpo a esa orientación, en lugar de girar o reconstruir el rostro. Si necesitas ajustar el tamaño, escala proporcionalmente la cabeza completa: nunca modifiques sus proporciones internas.\nEn el rostro, limita los ajustes a exposición, balance de blancos y color para armonizarlo con la escena, sin alterar sus rasgos ni borrar su textura. Si existe un conflicto entre una integración estética y la fidelidad facial, prioriza la fidelidad facial.\n\nCUERPO Y VESTIMENTA\nViste a la persona de acuerdo con el estilo seleccionado: ropa empresarial para Empresarias; vestimenta deportiva para Deportistas; toga y birrete para Graduadas; traje o vestido formal para De Gala; ropa apropiada para la playa para Viajeras.\nGenera un cuerpo sintético de silueta estilizada y contorneada, cintura definida y vestimenta entallada que favorezca la figura. Evita ropa holgada que añada volumen. Mantén proporciones anatómicas naturales y una relación coherente entre cabeza, cuello, hombros y cuerpo, sin delgadez extrema, cintura imposible ni extremidades deformadas. La silueta es una recreación estética, no una reproducción de las medidas reales. Genera manos y extremidades anatómicamente correctas.\n\nPOSICIÓN Y CERCANÍA\nColoca a la persona a la izquierda, muy próxima al grupo y ligeramente detrás del codo de la mujer más cercana. Ese codo debe quedar naturalmente por delante de parte de su brazo o torso, sin fusionar las extremidades ni cubrir ningún rostro.\nSu cabeza no debe sobresalir por encima de la mujer de pie más cercana: sitúala ligeramente más abajo, manteniendo un tamaño de cabeza y una escala corporal coherentes. Si la mujer más cercana está sentada, utiliza como referencia de altura a la otra mujer de pie.\nLas tres deben parecer estar posando juntas para la misma fotografía. Conserva la cercanía del grupo, con una postura relajada y una ligera orientación corporal hacia el centro.\n\nINTEGRACIÓN Y CONSERVACIÓN DE LA ESCENA\nAdapta la iluminación del cuerpo y la ropa, las sombras de contacto, la perspectiva, el color, la nitidez y el apoyo de los pies al entorno. Evita bordes de recorte, halos, extremidades deformadas y apariencia de figura pegada.\nConserva las posiciones, los rostros, la ropa y las poses de las dos mujeres de la imagen 1. Conserva el eslogan completo, sus letras y el logotipo.\nDevuelve una sola imagen con la escena grupal completa. La persona añadida debe ser reconocible por el mismo rostro de la imagen 2, sin reinterpretación estética." + '\nEstilo seleccionado: ' + style.replace('_', ' ')
-    prompt += '\nMONTAJE HÍBRIDO: adapta cuerpo y postura a la orientación exacta de la cabeza original. Mantén su peinado, tamaño de cabeza y orientación para que podamos recuperar la cabeza original sin girar ni deformar las facciones. No coloques manos ni objetos delante de esa cabeza.'
-    prompt += '\nENCUADRE VERTICAL 2:3, MÁS ESTRECHO: centra el grupo compacto de tres personas. Reduce el espacio vacío de la izquierda a un margen discreto, aproximadamente medio ancho de cabeza. Conserva el eslogan completo y todos los cuerpos, sin cortar cabezas ni pies. Reencuadra el fondo; no estires la imagen ni distancies a las personas.'
+    prompt = (
+        'Create ONE natural group photograph with exactly three people. '
+        'IMAGE 1 is the scene template. IMAGE 2 is the ORIGINAL PERSON with transparent background. '
+        'IMAGE 3, when present, is the LOCKED COMPOSITION GUIDE that already contains that original person. '
+        'Use IMAGE 3 as the canvas to complete, not as an approximate reference. '
+        'Keep the original person in exactly the guide position, scale, head orientation and pose. '
+        'The original face, hair, ears, neck, exposed upper chest, shoulders, visible skin, arms, torso '
+        'and clothing are ONE CONTINUOUS protected region. Do not replace the neck or paste a new face. '
+        'Do not redraw, beautify, slim, reshape or change any already visible part. '
+        'If the photo shows a full body, preserve that entire body and clothing; only integrate light and scene. '
+        'If partial, preserve ALL visible body and clothing and generate ONLY missing lower parts. '
+        'If a close selfie, retain the original head AND visible neck/shoulders; construct missing anatomy '
+        'continuously from their existing shape and proportions. Never construct a different neck under the face. '
+        'Use the original neck and visible skin as the reference for skin tone, undertone, texture and light '
+        'of every newly generated exposed body part; do not copy skin color from the other women. '
+        'Continue the existing silhouette and garments across the crop boundary with natural anatomy. '
+        f'For parts genuinely missing, style: {STYLES[style]}. '
+        'Do not change existing clothing to fit this style. '
+        'Keep the other two women, their faces and the entire slogan/logo unchanged. '
+        'Make the group close together, with natural overlap at the nearest elbow, but do not move the '
+        'protected person away from the guide or cover any face. '
+        'Match contact shadows, ground plane and perspective. No floating parts, cut lines, halos, '
+        'detached heads, duplicated faces, discolored neck, extra limbs or sticker appearance. '
+        'Return the complete portrait scene, not a separate body or cutout. Vertical 2:3, little unused left margin.'
+    )
     body = {
         'contents': [{'parts': [
             {'text': prompt},
@@ -132,6 +156,11 @@ async def generate_person(settings: Settings, encoded: str, style: str) -> dict:
         ]}],
         'generationConfig': {'responseModalities': ['TEXT', 'IMAGE'], 'imageConfig': {'aspectRatio': '2:3'}},
     }
+    if guide:
+        body['contents'][0]['parts'].extend([
+            {'text': 'IMAGE 3: locked guide; preserve original person pixels, generate only missing parts'},
+            {'inlineData': {'mimeType': 'image/png', 'data': guide}},
+        ])
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(150, connect=15)) as client:
             # Header, no query string: la clave nunca forma parte de una URL.
@@ -174,6 +203,7 @@ async def generate_person(settings: Settings, encoded: str, style: str) -> dict:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
+    verify_pipeline()
     if not re.fullmatch(r'[a-zA-Z0-9._-]{1,100}', settings.model):
         raise ValueError('Modelo de imágenes inválido')
     app = FastAPI(title='El cambio IA', docs_url=None, redoc_url=None, openapi_url=None)
@@ -211,7 +241,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def health():
         return {'status': 'ok', 'service': 'elcambio-ia-backend',
                 'generation_ready': bool(settings.enabled and settings.api_key and bool(settings.access_code)),
-                'access_code_required': True, 'composition': 'scene', 'face_restore': 'original-head-v2-auto'}
+                'access_code_required': True, 'composition': 'scene', 'face_restore': 'source-region-v3'}
 
     @app.post('/api/persona/generar')
     async def generate(payload: GenerateInput, request: Request):
@@ -224,16 +254,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(429, 'Hay otra imagen en proceso. Espera un momento.')
         async with busy:
             encoded = await run_in_threadpool(normalize_image, payload.image_base64)
-            head = await run_in_threadpool(prepare_head, encoded)
+            source = await run_in_threadpool(prepare_source, encoded)
+            template_path = Path(__file__).resolve().parent.parent / 'imagenes' / 'ampliadas' / f'{payload.style}.png'
+            guide, placement = await run_in_threadpool(create_guide, template_path, source)
             # Se usa la IP de la conexión, nunca un X-Forwarded-For arbitrario.
             await run_in_threadpool(reserve_attempt, settings, request.client.host if request.client else 'unknown')
-            result = await generate_person(settings, encoded, payload.style)
-            placement = await run_in_threadpool(locate_head, result['image_base64'], head)
-            result['image_base64'] = await run_in_threadpool(compose_original_head, result['image_base64'], head, placement)
+            result = await generate_person(settings, encoded, payload.style, guide=guide)
+            result['image_base64'] = await run_in_threadpool(finish_scene, result['image_base64'], source, placement)
             result['mime_type'] = 'image/png'
-            result['original_head'] = head
+            result['original_head'] = source
             result['head_placement'] = placement
-            result['face_restore'] = 'original-head-v2-auto'
+            result['face_restore'] = 'source-region-v3'
             return result
     return app
 
