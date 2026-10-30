@@ -203,3 +203,15 @@ def test_no_source_face_rejected_before_paid_generation(settings,monkeypatch):
         r=c.post('/api/persona/generar',json=payload(),headers={'X-El-Cambio-Code':settings.access_code})
         assert r.status_code==422
     assert not __import__('pathlib').Path(settings.quota_db).exists()
+
+
+def test_tight_crop_preserves_left_edge_of_colored_slogan():
+    import face_restore
+    import numpy as np
+    rgb=np.zeros((900,600,3),np.uint8)
+    rgb[20:110,40:560]=(200,0,0)
+    cropped=face_restore.tighten_left_margin(rgb,[300,300,60,80])
+    assert cropped.shape==(900,572,3)
+    assert np.array_equal(cropped[20:110,12:532],rgb[20:110,40:560])
+    blank=np.zeros_like(rgb)
+    assert face_restore.tighten_left_margin(blank,[300,300,60,80]).shape==blank.shape

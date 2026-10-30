@@ -138,6 +138,30 @@ def locate_head(scene_encoded, head):
             'automatic': True, 'target_box': target['box']}
 
 
+def tighten_left_margin(rgb, target_box):
+    """Trim vacant left background conservatively, protecting the colored slogan."""
+    height, width = rgb.shape[:2]
+    fx, _, fw, _ = target_box
+    desired = min(int(max(0, fx - 1.8 * fw)), int(width * .20))
+    if desired < 8:
+        return rgb
+    top = rgb[:max(1, int(height * .33))].astype(np.int16)
+    r, g, b = top[:,:,0], top[:,:,1], top[:,:,2]
+    colors = (((r > 150) & (g < 85) & (b < 100)) |
+              ((b > 80) & (b > r * 1.3) & (b > g * .85)) |
+              ((g > 75) & (g > r * 1.15) & (g > b * 1.3))).astype(np.uint8)
+    count, _, stats, _ = cv2.connectedComponentsWithStats(colors, 8)
+    glyphs = [stats[i] for i in range(1,count)
+              if stats[i,cv2.CC_STAT_AREA] > width*height*.0004
+              and stats[i,cv2.CC_STAT_HEIGHT] >= height*.025
+              and stats[i,cv2.CC_STAT_WIDTH] <= 8*stats[i,cv2.CC_STAT_HEIGHT]]
+    if not glyphs:
+        return rgb  # cannot establish safe slogan bounds; keep all pixels
+    logo_left = min(int(item[cv2.CC_STAT_LEFT]) for item in glyphs)
+    cut = min(desired, max(0, logo_left - max(12,int(width*.015))))
+    return rgb[:,cut:] if cut >= 8 else rgb
+
+
 def compose_original_head(scene_encoded, head, placement):
     # Final composition occurs here, so preview, saved file and share use the same image.
     scene = Image.fromarray(decode(scene_encoded)).convert('RGBA')
@@ -151,5 +175,8 @@ def compose_original_head(scene_encoded, head, placement):
     a = warped[:,:,3:4]
     rgb = warped[:,:,:3] + np.array(scene)[:,:,:3].astype(np.float32)*(1-a)
     out=io.BytesIO()
-    Image.fromarray(np.clip(rgb,0,255).astype(np.uint8)).save(out,format='PNG')
+    final = np.clip(rgb,0,255).astype(np.uint8)
+    if 'target_box' in placement:
+        final = tighten_left_margin(final, placement['target_box'])
+    Image.fromarray(final).save(out,format='PNG')
     return base64.b64encode(out.getvalue()).decode('ascii')
