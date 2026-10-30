@@ -113,52 +113,7 @@ async def generate_person(settings: Settings, encoded: str, style: str) -> dict:
     if style not in STYLES or not template_path.is_file():
         raise HTTPException(503, 'La plantilla de este estilo no está disponible.')
     template = base64.b64encode(template_path.read_bytes()).decode('ascii')
-    prompt = (
-        'Make ONE finished professional photorealistic group photograph using both references. '
-        'IMAGE 1 is the scene template with TWO existing women and a campaign slogan. '
-        'IMAGE 2 is the identity reference of the ONE additional person to integrate. '
-        'Keep the scene framing, aspect ratio, two existing women, their faces, clothes, '
-        'poses and the exact slogan and logo of IMAGE 1 unchanged. Do not crop the slogan. '
-        'Add the person from IMAGE 2 immediately to the LEFT of the two women on the SAME depth plane, '
-        'without covering their faces or the slogan. Exactly THREE people in the final scene. '
-        'Highest priority: faithfully retain the added person\'s facial identity, exact facial features, '
-        'expression, apparent age, skin tone, hairline and hairstyle from IMAGE 2. '
-        'Do not beautify, slim the face, rejuvenate, average faces or borrow the other women\'s features. '
-        'Remove the source background completely. Dress the added person in '
-        f'{STYLES[style]}. '
-        'If cropped or a selfie, complete the missing body with plausible age-appropriate anatomy '
-        'and natural proportions consistent with visible shoulders and build; do not stretch the selfie. '
-        'Show a complete natural body and shoes within the frame. Relaxed hands, correct fingers. '
-        'Match the scene camera height, perspective, ground plane and the apparent head sizes of '
-        'the existing STANDING woman. The added person must not look oversized or miniature. '
-        'GROUP ALIGNMENT IS ESSENTIAL: position the added person so their eye line and top of head '
-        'must NOT be higher than those of the nearest existing standing woman. Aim for the added '
-        'person\'s crown 1 to 2 percent of image height BELOW that reference crown, with a similar '
-        'natural head size. If the nearest woman is seated, use the other standing woman for height. '
-        'Do not put the added person closer to the camera, on a step or higher on the floor. '
-        'Fit the entire added body proportionally to that reference scale; never stretch or squash '
-        'the face, head, torso or legs independently to achieve alignment. '
-        'CLOSE GROUP POSE WITH NATURAL OCCLUSION: move the added person inward toward the center '
-        'until the nearest existing woman\'s outward elbow is visibly IN FRONT OF the added '
-        'person\'s inner upper arm or side of torso. The added person stands immediately beside '
-        'and slightly BEHIND that elbow, not in a separate column on the far left. '
-        'Their silhouettes should overlap naturally by about one upper-arm width at the elbow; '
-        'do not leave visible background between that elbow and the added person\'s torso. '
-        'Keep the existing elbow and forearm unchanged and correctly in front; do not erase them, '
-        'bend them around the added person or fuse skin and clothing. Keep all three faces clear. '
-        'Where the nearest woman has no outward elbow, use slight shoulder/upper-arm occlusion '
-        'with the existing woman in front to achieve the same compact shared pose. '
-        'Use a subtle inward turn or lean and relaxed arms so all three look like friends posing '
-        'for ONE shared photo. Preserve distinct, anatomically correct limbs despite the natural occlusion. '
-        'The existing two women keep their positions; move and scale ONLY the added person. '
-        'Match directional light, white balance, exposure, color temperature, grain, sharpness and '
-        'depth of field. Add realistic ground contact shadows and ambient occlusion. '
-        'For the beach use warm sunset rim light and feet resting naturally on the sand; for other '
-        'scenes match their floor and lighting. No floating feet, cut edges, halos, sticker look, '
-        'distorted limbs, duplicated parts or isolated studio portrait. '
-        'Return the COMPLETE integrated group scene, not a cutout or a separate person. '
-        'Output one portrait 4:5 image with the entire original template composition visible.'
-    )
+    prompt = "Crea una única fotografía grupal fotorrealista utilizando las dos imágenes de referencia.\n\nREFERENCIAS\nLa imagen 1 contiene la escena, las dos mujeres y el eslogan. La imagen 2 contiene a la persona que debes incorporar.\n\nPRIORIDAD MÁXIMA: CONSERVAR EL ROSTRO DE LA IMAGEN 2\nLa persona incorporada debe conservar su identidad facial. Trata su rostro como una región protegida: modifica la vestimenta, completa el cuerpo y adapta la composición alrededor de él, sin rediseñarlo.\nConserva la forma y las proporciones del rostro; la distancia, forma y tamaño de los ojos; las cejas; la nariz; los labios; la sonrisa y los dientes visibles; los pómulos; la mandíbula; el mentón; la frente; las orejas visibles; la línea del cabello y las asimetrías naturales.\nMantén la edad aparente, la expresión, la dirección de la mirada, la textura de la piel y los rasgos particulares visibles en la fotografía original. No rejuvenezcas, embellezcas, estilices, afines, suavices ni simetrices el rostro. No cambies la sonrisa ni inventes dientes. No combines sus facciones con las de las otras mujeres ni sustituyas su cara por una versión aproximada.\nConserva la orientación original de la cabeza. Adapta la postura del cuerpo a esa orientación, en lugar de girar o reconstruir el rostro. Si necesitas ajustar el tamaño, escala proporcionalmente la cabeza completa: nunca modifiques sus proporciones internas.\nEn el rostro, limita los ajustes a exposición, balance de blancos y color para armonizarlo con la escena, sin alterar sus rasgos ni borrar su textura. Si existe un conflicto entre una integración estética y la fidelidad facial, prioriza la fidelidad facial.\n\nCUERPO Y VESTIMENTA\nViste a la persona de acuerdo con el estilo seleccionado: ropa empresarial para Empresarias; vestimenta deportiva para Deportistas; toga y birrete para Graduadas; traje o vestido formal para De Gala; ropa apropiada para la playa para Viajeras.\nConserva la complexión visible. Si faltan partes del cuerpo, complétalas con anatomía y proporciones naturales, coherentes con lo que muestra la fotografía. No adelgaces ni exageres el cuerpo. Genera manos y extremidades anatómicamente correctas.\n\nPOSICIÓN Y CERCANÍA\nColoca a la persona a la izquierda, muy próxima al grupo y ligeramente detrás del codo de la mujer más cercana. Ese codo debe quedar naturalmente por delante de parte de su brazo o torso, sin fusionar las extremidades ni cubrir ningún rostro.\nSu cabeza no debe sobresalir por encima de la mujer de pie más cercana: sitúala ligeramente más abajo, manteniendo un tamaño de cabeza y una escala corporal coherentes. Si la mujer más cercana está sentada, utiliza como referencia de altura a la otra mujer de pie.\nLas tres deben parecer estar posando juntas para la misma fotografía. Conserva la cercanía del grupo, con una postura relajada y una ligera orientación corporal hacia el centro.\n\nINTEGRACIÓN Y CONSERVACIÓN DE LA ESCENA\nAdapta la iluminación del cuerpo y la ropa, las sombras de contacto, la perspectiva, el color, la nitidez y el apoyo de los pies al entorno. Evita bordes de recorte, halos, extremidades deformadas y apariencia de figura pegada.\nConserva las posiciones, los rostros, la ropa y las poses de las dos mujeres de la imagen 1. Conserva el eslogan completo, sus letras y el logotipo.\nDevuelve una sola imagen con la escena grupal completa. La persona añadida debe ser reconocible por el mismo rostro de la imagen 2, sin reinterpretación estética." + '\nEstilo seleccionado: ' + style.replace('_', ' ')
     body = {
         'contents': [{'parts': [
             {'text': prompt},
