@@ -237,12 +237,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get('/api/health')
     async def health():
         return {'status': 'ok', 'service': 'elcambio-ia-backend',
-                'generation_ready': bool(settings.enabled and settings.api_key and len(settings.access_code) >= 12),
+                'generation_ready': bool(settings.enabled and settings.api_key and bool(settings.access_code)),
                 'access_code_required': True, 'composition': 'scene'}
 
     @app.post('/api/persona/generar')
     async def generate(payload: GenerateInput, request: Request):
-        if not settings.enabled or not settings.api_key or len(settings.access_code) < 12:
+        if not settings.enabled or not settings.api_key or not settings.access_code:
             raise HTTPException(503, 'La generación de imágenes todavía no está habilitada.')
         supplied = request.headers.get('x-el-cambio-code', '')
         if not hmac.compare_digest(supplied.encode(), settings.access_code.encode()):
