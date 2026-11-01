@@ -98,6 +98,26 @@ def normalize_image(encoded: str) -> str:
         raise HTTPException(422, 'La imagen no es válida. Usa una foto JPG, PNG o WebP.') from None
 
 
+_cutout_session = None
+
+def remove_background_server(encoded: str) -> str:
+    """Remove the background on the service, independent of browser/WASM support."""
+    try:
+        from rembg import new_session, remove
+        raw = base64.b64decode(encoded, validate=True)
+        with Image.open(io.BytesIO(raw)) as source:
+            image = source.convert('RGBA')
+            global _cutout_session
+            if _cutout_session is None:
+                _cutout_session = new_session('isnet-general-use', providers=['CPUExecutionProvider'])
+            cutout = remove(image, session=_cutout_session, alpha_matting=False)
+            output = io.BytesIO()
+            cutout.convert('RGBA').save(output, format='PNG', optimize=True)
+        return base64.b64encode(output.getvalue()).decode('ascii')
+    except Exception as exc:
+        raise HTTPException(503, 'No se pudo separar la persona de la foto. El recorte no se completó y no se consumió una generación.') from exc
+
+
 def reserve_attempt(settings: Settings, client_ip: str):
     """Reserva atómica antes de gastar; los fallos también cuentan, sin reintentos automáticos."""
     day = datetime.now(timezone.utc).date().isoformat()
@@ -140,31 +160,14 @@ async def generate_person(settings: Settings, encoded: str, style: str, guide: s
         f'For parts genuinely missing, style: {STYLES[style]}. '
         'Do not change existing clothing to fit this style. '
         'Keep the other two women, their faces and the entire slogan/logo unchanged. '
-        'Make the group close together, with natural overlap at the nearest elbow, but do not move the '
-        'protected person away from the guide or cover any face. '
+        'Place all three people side by side on the same depth plane, close enough for their shoulders '
+        'to touch naturally. The added person stands shoulder to shoulder beside the nearest woman. '
+        'Do not place the added person behind, in front of, on top of, or overlapping another person. '
+        'Do not drape an arm or hand over anyone. Keep every body distinct and every face unobstructed. '
         'Match contact shadows, ground plane and perspective. No floating parts, cut lines, halos, '
         'detached heads, duplicated faces, discolored neck, extra limbs or sticker appearance. '
         'Return the complete portrait scene, not a separate body or cutout. Vertical 2:3, little unused left margin.'
     )
-    if style == 'Empresarias':
-        prompt += (
-            '\nOFFICE POSE EXCEPTION, ONLY FOR THE ADDED PERSON: the inward shoulder and arm '
-            '(on image RIGHT of the added person) have been released in the composition guide '
-            'so you may reconstruct ONLY that arm/shoulder to achieve the requested gesture. '
-            'Preserve their original face, hair, neck and central upper chest exactly. '
-            'Stand them close to and slightly behind the woman in the CREAM blazer. '
-            'Their inward upper arm reaches naturally behind her upper back; the relaxed hand '
-            'rests gently on her IMAGE-LEFT shoulder, mirroring the friendly gesture of the '
-            'woman in the BROWN blazer on the opposite side. The hand must connect through '
-            'a continuous forearm, elbow and upper arm to the added person\'s own shoulder. '
-            'Keep the added torso BEHIND the cream blazer woman, while the resting hand and '
-            'visible forearm are IN FRONT of her shoulder. Use smooth natural occlusion, '
-            'not a horizontal cut across her face, neck, lapel or shoulder. '
-            'Match the new arm skin to the added person\'s original neck and the sleeve to '
-            'their existing clothing. Exactly two arms and two hands for each person; '
-            'no duplicate original lowered arm, extra hand, fused fingers, hovering wrist '
-            'or disconnected limb. Keep the two existing women and their poses unchanged.'
-        )
     body = {
         'contents': [{'parts': [
             {'text': prompt},
@@ -260,7 +263,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def health():
         return {'status': 'ok', 'service': 'elcambio-ia-backend',
                 'generation_ready': bool(settings.enabled and settings.api_key and bool(settings.access_code)),
-                'access_code_required': True, 'composition': 'scene', 'face_restore': 'source-region-v3'}
+                'access_code_required': True, 'composition': 'scene', 'face_restore': 'source-region-v4'}
 
     @app.post('/api/persona/generar')
     async def generate(payload: GenerateInput, request: Request):
@@ -273,18 +276,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(429, 'Hay otra imagen en proceso. Espera un momento.')
         async with busy:
             encoded = await run_in_threadpool(normalize_image, payload.image_base64)
-            source = await run_in_threadpool(prepare_source, encoded)
+            cutout = await run_in_threadpool(remove_background_server, encoded)
+            source = await run_in_threadpool(prepare_source, cutout)
             source = await run_in_threadpool(apply_office_pose, source, payload.style)
             template_path = Path(__file__).resolve().parent.parent / 'imagenes' / 'ampliadas' / f'{payload.style}.png'
             guide, placement = await run_in_threadpool(create_guide, template_path, source)
             # Se usa la IP de la conexión, nunca un X-Forwarded-For arbitrario.
             await run_in_threadpool(reserve_attempt, settings, request.client.host if request.client else 'unknown')
-            result = await generate_person(settings, encoded, payload.style, guide=guide)
+            result = await generate_person(settings, cutout, payload.style, guide=guide)
             result['image_base64'] = await run_in_threadpool(finish_scene, result['image_base64'], source, placement)
             result['mime_type'] = 'image/png'
             result['original_head'] = source
             result['head_placement'] = placement
-            result['face_restore'] = 'source-region-v3'
+            result['face_restore'] = 'source-region-v4'
             return result
     return app
 

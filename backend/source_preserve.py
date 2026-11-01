@@ -45,28 +45,8 @@ def prepare_source(encoded):
             'face_box':[face[0]-left,face[1]-top,face[2],face[3]]}
 
 def apply_office_pose(source, style):
-    """Release only the inward shoulder/arm for the requested office gesture.
-
-    The same matte is used in the guide and final composition, so the preserved
-    old arm cannot be pasted over the newly generated hand. Face and neck stay opaque.
-    """
-    if style != 'Empresarias':
-        return source
-    patch = np.array(Image.open(io.BytesIO(base64.b64decode(source['image_base64']))).convert('RGBA'))
-    fx, fy, fw, fh = source['face_box']
-    yy, xx = np.mgrid[:patch.shape[0], :patch.shape[1]]
-    def smooth(t):
-        t=np.clip(t,0,1)
-        return t*t*(3-2*t)
-    inward = smooth((xx-(fx+fw*.80))/max(1,fw*.35))
-    below_neck = smooth((yy-(fy+fh*1.35))/max(1,fh*.30))
-    above_legs = 1-smooth((yy-(fy+fh*5.0))/max(1,fh*.65))
-    released=inward*below_neck*above_legs
-    patch[:,:,3]=np.rint(patch[:,:,3]*(1-released)).astype(np.uint8)
-    edited=dict(source)
-    edited['image_base64']=png64(Image.fromarray(patch))
-    edited['pose_edit']='office_hand_on_cream_shoulder'
-    return edited
+    """Keep the uploaded person's original pose and silhouette intact."""
+    return source
 
 
 def create_guide(template_path, source):
@@ -85,7 +65,7 @@ def create_guide(template_path, source):
     src = np.array(source['eyes'],dtype=float)
     span = float(np.linalg.norm(ref[1]-ref[0]))*.97
     scale = span/float(np.linalg.norm(src[1]-src[0]))
-    target = np.array([nearest['box'][0] + nearest['box'][2]/2 - nearest['box'][2]*1.45,
+    target = np.array([nearest['box'][0] + nearest['box'][2]/2 - nearest['box'][2]*1.8,
                        ref[:,1].mean()+GUIDE_H*.012])
     # Keep the source orientation intact; adapt synthetic anatomy to it.
     if source['coverage']=='full_or_long':

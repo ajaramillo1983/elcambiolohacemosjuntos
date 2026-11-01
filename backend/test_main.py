@@ -59,6 +59,7 @@ def test_success_and_per_person_limit(settings, monkeypatch):
             assert im.format == 'PNG'
         return {'image_base64': picture(), 'mime_type': 'image/png', 'generated': True}
     monkeypatch.setattr(main, 'generate_person', fake)
+    monkeypatch.setattr(main, 'remove_background_server', lambda encoded: encoded)
     monkeypatch.setattr(main, 'prepare_source', lambda encoded: {'image_base64': picture()})
     monkeypatch.setattr(main, 'apply_office_pose', lambda source, style: source)
     monkeypatch.setattr(main, 'create_guide', lambda path, source: ('TEST_GUIDE', {'automatic':True}))
@@ -223,7 +224,7 @@ def test_render_frontend_serves_automatic_ui_and_no_credentials(settings):
     with TestClient(main.create_app(settings)) as c:
         r=c.get('/')
         assert r.status_code==200
-        assert 'source-region-v3' in r.text
+        assert 'source-region-v4' in r.text
         assert 'id="headX"' not in r.text
         assert settings.api_key not in r.text
         cfg=c.get('/backend-config.js')
@@ -251,18 +252,11 @@ def test_normalization_keeps_png_alpha():
 
 
 
-def test_office_pose_releases_arm_but_protects_face_neck_and_other_styles():
+def test_office_pose_keeps_uploaded_pose_unchanged():
     import source_preserve
-    import numpy as np
     rgba=Image.new('RGBA',(200,800),(121,82,53,255))
     out=io.BytesIO();rgba.save(out,format='PNG')
     source={'image_base64':base64.b64encode(out.getvalue()).decode(),'face_box':[60,40,70,90]}
-    edited=source_preserve.apply_office_pose(source,'Empresarias')
-    patch=np.array(Image.open(io.BytesIO(base64.b64decode(edited['image_base64']))))
-    assert np.array_equal(patch[:160],np.array(rgba)[:160])  # face and neck stay intact
-    assert patch[300,190,3]==0  # inward arm is available for generation
-    assert patch[300,50,3]==255  # other arm/body remain protected
-    assert patch[650,190,3]==255  # legs remain protected
-    assert np.array_equal(patch[:,:,:3],np.array(rgba)[:,:,:3])
+    assert source_preserve.apply_office_pose(source,'Empresarias') is source
     assert source_preserve.apply_office_pose(source,'Viajeras') is source
     assert source_preserve.apply_office_pose(source,'Deportistas') is source

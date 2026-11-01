@@ -1,7 +1,8 @@
 # El cambio IA — backend independiente
 
 Este servicio no importa Centinela, no requiere sus credenciales ni accede a su base de datos.
-Genera una escena completa a partir de la foto y la plantilla del estilo elegido.
+Genera una escena completa a partir de la foto y la plantilla del estilo elegido. El recorte de fondo
+se ejecuta en el backend con ISNet, así no depende de WebAssembly, WebGPU ni del navegador móvil.
 La web muestra directamente el resultado de IA sin quitarle el fondo ni superponer un recorte.
 
 ## Despliegue en el nuevo servicio de Render

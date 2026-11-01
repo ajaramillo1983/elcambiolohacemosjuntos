@@ -19,10 +19,10 @@
 <div><h2>2. Sube tu foto</h2><label class="upload">Elegir foto<input id="upload" type="file" accept="image/jpeg,image/png,image/webp"></label><p class="small">Sube una foto nítida de una sola persona, con el rostro visible. Después pulsa Crear montaje con IA para adaptar vestimenta, cuerpo, iluminación y perspectiva a la escena.</p>
 <div hidden><label for="photoType" class="range">Tipo de foto</label><select id="photoType"><option value="full">Cuerpo entero</option><option value="portrait">Selfie o medio cuerpo</option></select><p class="note" id="portraitNote" hidden>La selfie se coloca como retrato sin fondo. Cuando el servicio esté conectado, podrás generar un cuerpo completo y revisar el resultado.</p>
 </div><div id="generationPanel" hidden><label for="pilotCode" class="range">Código de acceso del piloto</label><input id="pilotCode" type="password" autocomplete="off" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:10px">
-<label class="small" style="display:block"><input id="consent" type="checkbox"> Autorizo enviar mi foto y la plantilla a Google para generar la escena. Se conservarán la persona visible y su cuello; la IA completará únicamente las partes que falten. Revisaré la unión y el resultado.</label>
+<label class="small" style="display:block"><input id="consent" type="checkbox"> Autorizo enviar mi foto al servicio para quitar el fondo y enviar el recorte y la plantilla a Google para generar la escena. Se conservarán la persona visible y su cuello; la IA completará únicamente las partes que falten. Revisaré la unión y el resultado.</label>
 <button id="generateBody" class="secondary" disabled>Crear montaje con IA</button><p class="small">Introduce el código del piloto para habilitar el botón. Cada intento consume una generación. Se solicita conservar los rostros y el texto, pero debes revisar que la IA no los haya alterado.</p></div>
 <div class="compare" id="compare" hidden><figure><img id="before" alt="Foto original"><figcaption>Original</figcaption></figure><figure><img id="after" alt="Montaje de IA"><figcaption>Persona original conservada</figcaption></figure></div>
-<button id="retry" class="secondary" hidden>Reintentar quitar fondo</button></div>
+<button id="retry" class="secondary" hidden>Reintentar preparar foto</button></div>
 <div class="adjust" hidden><h2>3. Ajusta y previsualiza</h2><p class="small">La persona se ubica automáticamente a la izquierda. Puedes ajustar su tamaño y posición.</p>
 <label class="range" for="size">Tamaño</label><input id="size" type="range" min="50" max="140" value="100" disabled>
 <label class="range" for="horizontal">Posición horizontal</label><input id="horizontal" type="range" min="-140" max="160" value="0" disabled>
@@ -36,7 +36,7 @@
 <button id="copyMessage" class="secondary">Copiar mensaje</button><button id="download" class="secondary" disabled>Guardar imagen</button><p class="small">Revisa el rostro antes de compartir. La imagen es un montaje con IA, no una fotografía de un encuentro real.</p></div>
 </section>
 <section class="card preview" aria-label="Vista previa del montaje"><div class="preview-head"><h2>Vista previa</h2><span class="badge">Plantilla · sin generar</span></div><div id="status" class="status" role="status" aria-live="polite">Cargando plantilla…</div><progress id="progress" hidden></progress><canvas id="preview" width="1600" height="2048" aria-label="Resultado del montaje"></canvas></section>
-</main><dialog id="shareDialog"><h2 id="shareTitle">Compartir</h2><p id="shareInstructions"></p><button id="saveForShare" class="primary">Guardar imagen</button><button id="copyForShare" class="secondary">Copiar mensaje</button><a id="openNetwork" class="secondary" style="display:block" target="_blank" rel="noopener noreferrer">Abrir red social</a><button id="closeShare" class="secondary">Cerrar</button></dialog><footer>El montaje envía tu foto y la plantilla a Google. El resultado es sintético y requiere revisión. <a href="https://github.com/ajaramillo1983/elcambiolohacemosjuntos" target="_blank" rel="noopener">Código fuente</a>.</footer>
+</main><dialog id="shareDialog"><h2 id="shareTitle">Compartir</h2><p id="shareInstructions"></p><button id="saveForShare" class="primary">Guardar imagen</button><button id="copyForShare" class="secondary">Copiar mensaje</button><a id="openNetwork" class="secondary" style="display:block" target="_blank" rel="noopener noreferrer">Abrir red social</a><button id="closeShare" class="secondary">Cerrar</button></dialog><footer>La foto se envía al servicio para quitar el fondo y a Google para generar el montaje. El resultado es sintético y requiere revisión. <a href="https://github.com/ajaramillo1983/elcambiolohacemosjuntos" target="_blank" rel="noopener">Código fuente</a>.</footer>
 <script type="module">
 const $=id=>document.getElementById(id);
 const W=1600,H=2048;
@@ -76,21 +76,20 @@ $('generateBody').onclick=async()=>{
  const controller=new AbortController();let timer;
  try{
  const health=await fetch(apiBase+'/api/health',{signal:controller.signal,cache:'no-store'});
- if(!health.ok||(await health.json()).face_restore!=='source-region-v3')throw new Error('El servidor se está actualizando. Espera un minuto y recarga la página. No se ha solicitado ninguna generación.');
+ if(!health.ok||(await health.json()).face_restore!=='source-region-v4')throw new Error('El servidor se está actualizando. Espera un minuto y recarga la página. No se ha solicitado ninguna generación.');
  if(!state.prepared){
- status('Quitando el fondo en tu dispositivo y conservando rostro, cuello y cuerpo visible. La primera descarga del modelo puede tardar unos minutos…','busy');
- try{
- const input=await normalize(state.source);
- const remover=await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/index.mjs');
- state.prepared=await remover.removeBackground(input,{model:'small',device:'cpu',proxyToWorker:false,output:{format:'image/png'},progress:(key,current,total)=>{if(total>0){$('progress').max=total;$('progress').value=current;}status(key.startsWith('fetch:')?'Descargando el modelo de recorte. Mantén la página abierta…':'Separando la persona completa del fondo, sin reconstruir su rostro…','busy');}});
- }catch(e){state.prepared=null;throw new Error('No se pudo quitar el fondo en este dispositivo. Comprueba la conexión o prueba Chrome actualizado. Todavía no se ha solicitado la generación de pago.');}
+ status('Preparando la foto para el servicio…','busy');
+try{
+ status('Preparando la foto en el servicio para que funcione también en móviles y navegadores distintos…','busy');
+ state.prepared=await normalize(state.source);
+ }catch(e){state.prepared=null;throw new Error('No se pudo preparar la foto. Revisa el archivo e inténtalo de nuevo. Todavía no se ha solicitado la generación de pago.');}
  }
- status('Preparando la escena con tu recorte original. La IA completará solo las partes que faltan…','busy');
+ status('Quitando el fondo en el servicio y preparando la escena. La generación de pago se solicita solo después de validar el recorte…','busy');
  timer=setTimeout(()=>controller.abort(),175000);
  const blob=state.prepared;const bytes=new Uint8Array(await blob.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
  const response=await fetch(apiBase+'/api/persona/generar',{method:'POST',headers:{'Content-Type':'application/json','X-El-Cambio-Code':$('pilotCode').value},body:JSON.stringify({image_base64:btoa(binary),mime_type:'image/png',style:state.style,consent:true}),signal:controller.signal});
  const result=await response.json();if(!response.ok)throw new Error(typeof result.detail==='string'?result.detail:'No se pudo generar la imagen.');
- if(result.face_restore!=='source-region-v3'||!result.original_head||!result.head_placement)throw new Error('El servidor se está actualizando. Espera un minuto y recarga la página antes de volver a generar.');
+ if(result.face_restore!=='source-region-v4'||!result.original_head||!result.head_placement)throw new Error('El servidor se está actualizando. Espera un minuto y recarga la página antes de volver a generar.');
  if(!['image/png','image/jpeg','image/webp'].includes(result.mime_type)||!result.image_base64)throw new Error('El servicio no devolvió una imagen válida.');
  const raw=atob(result.image_base64);const output=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)output[i]=raw.charCodeAt(i);
  const url=URL.createObjectURL(new Blob([output],{type:result.mime_type}));
